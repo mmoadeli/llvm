@@ -12,7 +12,7 @@
 #include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
 #include <sycl/ext/oneapi/matrix/matrix-amd.hpp>
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -449,5 +449,5 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
