@@ -10,6 +10,7 @@
 #include "matrix-intel.hpp"
 #include "utils.hpp"
 #include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
+#include <sycl/ext/oneapi/matrix/matrix-amd.hpp>
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
@@ -17,14 +18,22 @@ namespace oneapi {
 namespace experimental {
 namespace matrix {
 
+#if !defined(__AMDGCN__)
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout>
+#else
+template <typename Group, typename T, use Use, uint32_t BlockN, uint32_t BlockM,
+          uint32_t BlockK, layout Layout>
+#endif
 struct joint_matrix {
 
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols, Layout>
       cuda_impl;
+#elif defined(__AMDGCN__)
+  sycl::ext::oneapi::detail::joint_matrix_hip<T, Use, BlockN, BlockM,
+      BlockK, Layout>::type hip_impl;
 #elif defined(__SPIR__)
   __spv::__spirv_JointMatrixINTEL<
       T, Rows, Cols, spv_matrix_layout_traits<Layout>::value,
