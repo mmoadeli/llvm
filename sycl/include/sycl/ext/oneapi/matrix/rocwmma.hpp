@@ -289,16 +289,14 @@ template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
     //   \tparam DataT data type
     //   \tparam DataLayout in-memory layout as col_major or row_major
     // */
-    // template <typename MatrixT,
-    //           uint32_t BlockM,
-    //           uint32_t BlockN,
-    //           uint32_t BlockK,
-    //           typename DataT,
-    //           typename DataLayout>
-    // ROCWMMA_DEVICE void
-    //     load_matrix_sync(fragment<MatrixT, BlockM, BlockN, BlockK, DataT, DataLayout>& frag,
-    //                      const DataT*                                                  data,
-    //                      uint32_t                                                      ldm);
+    template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
+          size_t Rows, size_t Cols,
+          sycl::ext::oneapi::experimental::matrix::layout DataLayout>
+    ROCWMMA_DEVICE void
+        load_matrix_sync(fragment<DataT, Use, Rows, Cols, DataLayout>& frag,
+                         const DataT*                                  data,
+                         uint32_t                                      ldm,
+                         sycl::sub_group& sg);
 
     // //! Loads the entire fragment from the data pointer according to its matrix layout.Data pointer may point to either local or global memory. This overload provides a run-time ability to choose the data layout of the target fragment.
     // /*!

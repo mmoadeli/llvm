@@ -222,10 +222,12 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
-#if defined(__NVPTX__)
+#if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
   std::ignore = sg;
   sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
                                                    Layout);
+#elif defined(__HIP_PLATFORM_AMD__)
+  rocwmma::load_matrix_sync(res, src, stride, sg);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);

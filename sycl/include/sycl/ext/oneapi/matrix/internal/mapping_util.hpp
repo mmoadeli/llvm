@@ -46,13 +46,13 @@ namespace rocwmma
             using WorkgroupDimT   = Coord2d;
 
             // Current lane normalized to [0, 63].
-            ROCWMMA_DEVICE static inline uint32_t localLaneId();
+            ROCWMMA_DEVICE static inline uint32_t localLaneId(sycl::id<1>& id);
 
             // Local wave coordinate relative to current workgroup.
-            ROCWMMA_DEVICE constexpr static inline WaveCoordT localWaveCoord();
+            ROCWMMA_DEVICE constexpr static inline WaveCoordT localWaveCoord(sycl::id<2>& id);
 
             // Global wave grid coordinate relative to all workgroups.
-            ROCWMMA_DEVICE static inline WaveCoordT globalWaveCoord();
+            ROCWMMA_DEVICE static inline WaveCoordT globalWaveCoord(sycl::id<2>& id);
 
             // Global workgroup Id
             ROCWMMA_DEVICE constexpr static inline WorkgroupCoordT workgroupCoord();
@@ -156,16 +156,16 @@ workgroup.
         /// Current wave perspective
 
         // Current lane of current wave
-        ROCWMMA_DEVICE static inline uint32_t laneId();
+        ROCWMMA_DEVICE static inline uint32_t laneId(sycl::id<1>& id);
 
         // Local wave coordinate relative to workgroup
-        ROCWMMA_DEVICE static inline WaveCoordT waveCoord();
+        ROCWMMA_DEVICE static inline WaveCoordT waveCoord(sycl::id<2>& id);
 
         // Global block (grid) coordinate of current wave
-        ROCWMMA_DEVICE static inline BlockCoordT blockCoord();
+        ROCWMMA_DEVICE static inline BlockCoordT blockCoord(sycl::id<2>& id);
 
         // Matrix coordinate of current wave
-        ROCWMMA_DEVICE static inline MatrixCoordT matrixCoord();
+        ROCWMMA_DEVICE static inline MatrixCoordT matrixCoord(sycl::id<2>& id);
 
         // Data address of current wave
         ROCWMMA_DEVICE static inline DataT const* dataCoord(DataT const* baseAddr, uint32_t ldm);

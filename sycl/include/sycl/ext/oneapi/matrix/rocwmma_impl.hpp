@@ -168,8 +168,9 @@ namespace rocwmma
           sycl::ext::oneapi::experimental::matrix::layout DataLayout>
     ROCWMMA_DEVICE void
         load_matrix_sync(fragment<DataT, Use, Rows, Cols, DataLayout>& frag,
-                         const DataT*                                                  data,
-                         uint32_t                                                      ldm)
+                         const DataT*                                  data,
+                         uint32_t                                      ldm,
+                         sycl::sub_group& sg)
     {
         using FragT  = typename std::decay<decltype(frag)>::type;
         using Loader = typename GetIOConfig_t<FragT>::Loader;
@@ -184,7 +185,7 @@ namespace rocwmma
             "Fragment access and load output types do not match");
 
         // Load then implicit pack
-        Loader::exec(frag.mAccess, data, ldm);
+        Loader::exec(frag.mAccess, data, ldm, sg.get_local_id());
     }
 
     // template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,

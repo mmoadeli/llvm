@@ -569,17 +569,17 @@ namespace rocwmma
                     using MatrixCoordT = Coord2d;
                 };
 
-                ROCWMMA_DEVICE static inline typename Traits::MatrixCoordT baseOffset()
+                ROCWMMA_DEVICE static inline typename Traits::MatrixCoordT baseOffset(sycl::id<1>& id)
                 {
                     // TODO: Use constexpr if on C++17
                     if(Traits::LargeDim)
                     {
-                        return make_coord2d(/* threadIdx.x mmoadeli fix me */ 0 % Traits::WaveSize, 0u);
+                        return make_coord2d(id[0] % Traits::WaveSize, 0u);
                     }
                     else
                     {
-                        return make_coord2d(/* threadIdx.x mmoadeli fix me */ 0 % BlockDim,
-                                            (/* threadIdx.x mmoadeli fix me */ 0 / BlockDim) * MaxVectorWidth
+                        return make_coord2d(id[0] % BlockDim,
+                                            (id[0] / BlockDim) * MaxVectorWidth
                                                 % Traits::MaxKPerIO);
                     }
                 }
@@ -772,18 +772,18 @@ namespace rocwmma
                     using MatrixCoordT = Coord2d;
                 };
 
-                ROCWMMA_DEVICE static inline typename Traits::MatrixCoordT baseOffset()
+                ROCWMMA_DEVICE static inline typename Traits::MatrixCoordT baseOffset(sycl::id<1>& id)
                 {
                     // TODO: Use constexpr if when C++ 17
                     if(Traits::LargeDim)
                     {
-                        return make_coord2d(/* threadIdx.x  mmoadeli: Fix me */ 0 * MaxVectorWidth % Traits::MaxElementsPerIO,
+                        return make_coord2d(id[0] * MaxVectorWidth % Traits::MaxElementsPerIO,
                                             0u);
                     }
                     else
                     {
-                        return make_coord2d(/* threadIdx.x  mmoadeli: Fix me */ 0 * MaxVectorWidth % BlockDim,
-                                            /* threadIdx.x mmoadeli fix me */ 0 * MaxVectorWidth / BlockDim
+                        return make_coord2d(id[0] * MaxVectorWidth % BlockDim,
+                                            id[0] * MaxVectorWidth / BlockDim
                                                 % Traits::MaxKPerIO);
                     }
                 }
@@ -891,9 +891,9 @@ namespace rocwmma
                 };
 
                 // Matrix coord offsets
-                ROCWMMA_DEVICE static inline typename Traits::MatrixCoordT baseOffset()
+                ROCWMMA_DEVICE static inline typename Traits::MatrixCoordT baseOffset(sycl::id<1>& id)
                 {
-                    return swap(Traits::OrthoLayout::baseOffset());
+                    return swap(Traits::OrthoLayout::baseOffset(id));
                 }
                 ROCWMMA_DEVICE static inline typename Traits::MatrixCoordT
                     incrementalOffset(uint32_t iteration)
@@ -924,9 +924,9 @@ namespace rocwmma
                 };
 
                 // Matrix coord offsets
-                ROCWMMA_DEVICE static inline typename Traits::MatrixCoordT baseOffset()
+                ROCWMMA_DEVICE static inline typename Traits::MatrixCoordT baseOffset(sycl::id<1>& id)
                 {
-                    return swap(Traits::OrthoLayout::baseOffset());
+                    return swap(Traits::OrthoLayout::baseOffset(id));
                 }
                 ROCWMMA_DEVICE static inline typename Traits::MatrixCoordT
                     incrementalOffset(uint32_t iteration)
