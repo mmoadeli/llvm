@@ -71,17 +71,16 @@ namespace rocwmma
     // /// IOConfig access
     // ///
 
-    // template <typename MatrixT,
-    //           uint32_t BlockM,
-    //           uint32_t BlockN,
-    //           uint32_t BlockK,
-    //           typename DataT,
-    //           typename DataLayoutT>
-    // struct GetIOConfig<fragment<MatrixT, BlockM, BlockN, BlockK, DataT, DataLayoutT>>
-    // {
-    //     using type =
-    //         typename fragment<MatrixT, BlockM, BlockN, BlockK, DataT, DataLayoutT>::IOConfig;
-    // };
+    template <typename DataT,
+              sycl::ext::oneapi::experimental::matrix::use Use,
+              size_t Rows,
+              size_t Cols,
+              sycl::ext::oneapi::experimental::matrix::layout DataLayout>
+    struct GetIOConfig<fragment<DataT, Use, Rows, Cols, DataLayout>>
+    {
+        using type =
+            typename fragment<DataT, Use, Rows, Cols, DataLayout>::IOConfig;
+    };
 
     // ///
     // /// IOShape access

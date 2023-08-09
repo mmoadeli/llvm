@@ -289,12 +289,13 @@ template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
     //   \tparam DataT data type
     //   \tparam DataLayout in-memory layout as col_major or row_major
     // */
-    template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
+    template <sycl::access::address_space Space, sycl::access::decorated IsDecorated,
+          typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
           sycl::ext::oneapi::experimental::matrix::layout DataLayout>
     ROCWMMA_DEVICE void
         load_matrix_sync(fragment<DataT, Use, Rows, Cols, DataLayout>& frag,
-                         const DataT*                                  data,
+                         sycl::multi_ptr<DataT, Space, IsDecorated>    data,
                          uint32_t                                      ldm,
                          sycl::sub_group& sg);
 
@@ -315,26 +316,25 @@ template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
     //                                      uint32_t                                          ldm,
     //                                      layout_t                                          layout);
 
-    // //! Stores the entire fragment to the data pointer according to its matrix and data layouts. Data pointer may point to either local or global memory.
-    // /*!
-    //   \param frag Fragment of type MatrixT with its associated block sizes, data type and layout
-    //   \param data Data pointer to global/local memory
-    //   \param ldm Leading dimension size
-    //   \tparam MatrixT fragment context
-    //   \tparam BlockM/N/K block dimensions
-    //   \tparam DataT data type
-    //   \tparam DataLayout in-memory layout as col_major or row_major
-    // */
-    // template <typename MatrixT,
-    //           uint32_t BlockM,
-    //           uint32_t BlockN,
-    //           uint32_t BlockK,
-    //           typename DataT,
-    //           typename DataLayout>
-    // ROCWMMA_DEVICE void
-    //     store_matrix_sync(DataT*                                                              data,
-    //                       fragment<MatrixT, BlockM, BlockN, BlockK, DataT, DataLayout> const& frag,
-    //                       uint32_t                                                            ldm);
+    //! Stores the entire fragment to the data pointer according to its matrix and data layouts. Data pointer may point to either local or global memory.
+    /*!
+      \param frag Fragment of type MatrixT with its associated block sizes, data type and layout
+      \param data Data pointer to global/local memory
+      \param ldm Leading dimension size
+      \tparam MatrixT fragment context
+      \tparam BlockM/N/K block dimensions
+      \tparam DataT data type
+      \tparam DataLayout in-memory layout as col_major or row_major
+    */
+    template <sycl::access::address_space Space, sycl::access::decorated IsDecorated,
+          typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
+          size_t Rows, size_t Cols,
+          sycl::ext::oneapi::experimental::matrix::layout DataLayout>
+    ROCWMMA_DEVICE void
+        store_matrix_sync(sycl::multi_ptr<DataT, Space, IsDecorated>          data,
+                          fragment<DataT, Use, Rows, Cols, DataLayout> const& frag,
+                          uint32_t                                            ldm,
+                          sycl::sub_group& sg);
 
     // //!  Stores the entire fragment to the data pointer according to its matrix layout. Data pointer may point to either local or global memory. This overload provides a run-time ability to choose the data layout of the target fragment.
     // /*!
@@ -354,33 +354,33 @@ template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
     //                       uint32_t                                                ldm,
     //                       layout_t                                                layout);
 
-    // //! Performs the Multiply-Accumulate operation on the fragments A, B, C and D(D = A * B + C)
-    // /*!
-    //   \param d Accumulator output D
-    //   \param a Input fragment A
-    //   \param b Input fragment B
-    //   \param c Input accumulator fragment C
-    //   \tparam BlockM/N/K block dimensions
-    //   \tparam InputT data type of input frags A and B
-    //   \tparam ComputeT data type of accumulator fragment C / D
-    //   \tparam LayoutA in-memory layout of frag A as col_major or row_major
-    //   \tparam LayoutB in-memory layout of frag B as col_major or row_major
-    //   \note Frag c = d is valid
-    // */
-    // template <uint32_t BlockM,
-    //           uint32_t BlockN,
-    //           uint32_t BlockK,
-    //           typename InputT,
-    //           typename ComputeT,
-    //           typename LayoutA,
-    //           typename LayoutB,
-    //           typename LayoutC,
-    //           typename LayoutD>
-    // ROCWMMA_DEVICE void
-    //     mma_sync(fragment<accumulator, BlockM, BlockN, BlockK, ComputeT, LayoutD>&       d,
-    //              fragment<matrix_a, BlockM, BlockN, BlockK, InputT, LayoutA> const&      a,
-    //              fragment<matrix_b, BlockM, BlockN, BlockK, InputT, LayoutB> const&      b,
-    //              fragment<accumulator, BlockM, BlockN, BlockK, ComputeT, LayoutC> const& c);
+    //! Performs the Multiply-Accumulate operation on the fragments A, B, C and D(D = A * B + C)
+    /*!
+      \param d Accumulator output D
+      \param a Input fragment A
+      \param b Input fragment B
+      \param c Input accumulator fragment C
+      \tparam BlockM/N/K block dimensions
+      \tparam InputT data type of input frags A and B
+      \tparam ComputeT data type of accumulator fragment C / D
+      \tparam LayoutA in-memory layout of frag A as col_major or row_major
+      \tparam LayoutB in-memory layout of frag B as col_major or row_major
+      \note Frag c = d is valid
+    */
+    template <size_t BlockM,
+              size_t BlockN,
+              size_t BlockK,
+              typename InputT,
+              typename ComputeT,
+              sycl::ext::oneapi::experimental::matrix::layout LayoutA,
+              sycl::ext::oneapi::experimental::matrix::layout LayoutB,
+              sycl::ext::oneapi::experimental::matrix::layout LayoutC,
+              sycl::ext::oneapi::experimental::matrix::layout LayoutD>
+    ROCWMMA_DEVICE void
+        mma_sync(fragment<ComputeT, sycl::ext::oneapi::experimental::matrix::use::accumulator, BlockM, BlockN, LayoutD>&       d,
+                 fragment<InputT, sycl::ext::oneapi::experimental::matrix::use::a, BlockM, BlockK, LayoutA> const&      a,
+                 fragment<InputT, sycl::ext::oneapi::experimental::matrix::use::b, BlockK, BlockN, LayoutB> const&      b,
+                 fragment<ComputeT, sycl::ext::oneapi::experimental::matrix::use::accumulator, BlockM, BlockN, LayoutC> const& c);
 
     // //! Synchronization point for all wavefronts in a workgroup.
     // ROCWMMA_DEVICE void synchronize_workgroup();

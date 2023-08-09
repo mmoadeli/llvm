@@ -82,31 +82,38 @@ namespace rocwmma
         }
 
         template <uint32_t TBlockX, uint32_t TBlockY>
-        ROCWMMA_DEVICE inline auto WaveSpace<TBlockX, TBlockY>::globalWaveCoord(sycl::id<2>& id) -> WaveCoordT
+        ROCWMMA_DEVICE inline auto WaveSpace<TBlockX, TBlockY>::globalWaveCoord(sycl::sub_group& sub_group) -> WaveCoordT
         {
-            return waveCount(make_coord2d(/* blockIdx.x mmoadeli fix me */ 0 * TBlockX + id[0],
-                                          /* blockIdx.y mmoadeli fix me */ 0 * TBlockY + id[1]));
+            auto BlockDim = sub_group.get_local_range();
+            auto BlockId = sub_group.get_group_id();
+            auto id = sub_group.get_local_id();
+            return waveCount(make_coord2d(BlockId[0] * TBlockX + id[0],
+                                          BlockId[1] * TBlockY + id[1]));
         }
 
         template <>
-        ROCWMMA_DEVICE inline auto WaveSpace<0, 0>::globalWaveCoord(sycl::id<2>& id) -> WaveCoordT
+        ROCWMMA_DEVICE inline auto WaveSpace<0, 0>::globalWaveCoord(sycl::sub_group& sub_group) -> WaveCoordT
         {
-            return waveCount(make_coord2d(/* blockIdx.x mmoadeli fix me */ 0 * /* blockDim.x mmoadeli fix me */ 0 + id[0],
-                                          /* blockIdx.y mmoadeli fix me */ 0 * /* blockDim.y mmoadeli fix me */ 0 + id[1]));
+            auto BlockDim = sub_group.get_local_range();
+            auto BlockId = sub_group.get_group_id();
+            auto id = sub_group.get_local_id();
+            return waveCount(make_coord2d(BlockId[0] * BlockDim[0] + id[0],
+                                          BlockId[1] * BlockDim[1] + id[1]));
         }
 
-        template <uint32_t TBlockX, uint32_t TBlockY>
-        ROCWMMA_DEVICE constexpr inline auto WaveSpace<TBlockX, TBlockY>::workgroupCoord()
-            -> WorkgroupCoordT
-        {
-            return make_coord2d(static_cast<uint32_t>(/* blockIdx.x mmoadeli fix me */ 0),
-                                static_cast<uint32_t>(/* blockIdx.y mmoadeli fix me */ 0));
-        }
+        // template <uint32_t TBlockX, uint32_t TBlockY>
+        // ROCWMMA_DEVICE constexpr inline auto WaveSpace<TBlockX, TBlockY>::workgroupCoord(sycl::sub_group& sub_group)
+        //     -> WorkgroupCoordT
+        // {
+        //     auto BlockId = sub_group.get_group_id();
+        //     return make_coord2d(static_cast<uint32_t>(BlockId[0]),
+        //                         static_cast<uint32_t>(BlockId[1]));
+        // }
 
         template <uint32_t TBlockX, uint32_t TBlockY>
         template <bool IsConst /* = (TBlockX > 0u && TBlockY > 0u) */,
                   typename std::enable_if_t<IsConst>* /* = nullptr */>
-        ROCWMMA_DEVICE constexpr inline auto WaveSpace<TBlockX, TBlockY>::workgroupDim()
+        ROCWMMA_DEVICE constexpr inline auto WaveSpace<TBlockX, TBlockY>::workgroupDim(sycl::sub_group& sub_group)
             -> WorkgroupDimT
         {
             return waveCount(make_coord2d(TBlockX, TBlockY));
@@ -115,9 +122,10 @@ namespace rocwmma
         template <uint32_t TBlockX, uint32_t TBlockY>
         template <bool IsConst /* = (TBlockX > 0u && TBlockY > 0u) */,
                   typename std::enable_if_t<!IsConst>* /* = nullptr */>
-        ROCWMMA_DEVICE inline auto WaveSpace<TBlockX, TBlockY>::workgroupDim() -> WorkgroupDimT
+        ROCWMMA_DEVICE inline auto WaveSpace<TBlockX, TBlockY>::workgroupDim(sycl::sub_group& sub_group) -> WorkgroupDimT
         {
-            return waveCount(make_coord2d(/* blockDim.x mmoadeli fix me */ 0, /* blockDim.y mmoadeli fix me */ 0));
+            auto BlockDim = sub_group.get_local_range();
+            return waveCount(make_coord2d(BlockDim[0], BlockDim[1]));
         }
 
         /// MatrixSpace
@@ -167,11 +175,11 @@ namespace rocwmma
 
     template <uint32_t BlockHeight, uint32_t BlockWidth, typename DataT,
         sycl::ext::oneapi::experimental::matrix::layout DataLayout>
-    ROCWMMA_DEVICE inline auto MappingUtil<BlockHeight, BlockWidth, DataT, DataLayout>::blockCoord(sycl::id<2>& id)
+    ROCWMMA_DEVICE inline auto MappingUtil<BlockHeight, BlockWidth, DataT, DataLayout>::blockCoord(sycl::sub_group& sub_group)
         -> BlockCoordT
     {
         // Map each wave 1 : 1 to global block grid
-        return WaveSpace::globalWaveCoord(id);
+        return WaveSpace::globalWaveCoord(sub_group);
     }
 
     template <uint32_t BlockHeight, uint32_t BlockWidth, typename DataT,
@@ -205,9 +213,9 @@ namespace rocwmma
     template <uint32_t BlockHeight, uint32_t BlockWidth, typename DataT,
         sycl::ext::oneapi::experimental::matrix::layout DataLayout>
     ROCWMMA_DEVICE inline auto
-        MappingUtil<BlockHeight, BlockWidth, DataT, DataLayout>::workgroupDim() -> WorkgroupDimT
+        MappingUtil<BlockHeight, BlockWidth, DataT, DataLayout>::workgroupDim(sycl::sub_group& sub_group) -> WorkgroupDimT
     {
-        return WaveSpace::workgroupDim();
+        return WaveSpace::workgroupDim(sub_group);
     }
 
     /// Coordinate override helpers

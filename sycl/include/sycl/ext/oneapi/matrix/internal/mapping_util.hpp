@@ -52,19 +52,19 @@ namespace rocwmma
             ROCWMMA_DEVICE constexpr static inline WaveCoordT localWaveCoord(sycl::id<2>& id);
 
             // Global wave grid coordinate relative to all workgroups.
-            ROCWMMA_DEVICE static inline WaveCoordT globalWaveCoord(sycl::id<2>& id);
+            ROCWMMA_DEVICE static inline WaveCoordT globalWaveCoord(sycl::sub_group& sub_group);
 
             // Global workgroup Id
-            ROCWMMA_DEVICE constexpr static inline WorkgroupCoordT workgroupCoord();
+            ROCWMMA_DEVICE constexpr static inline WorkgroupCoordT workgroupCoord(sycl::sub_group& sub_group);
 
             // Size of workgroup, normalized to wave count.
             template <bool IsConst                        = (TBlockX > 0u && TBlockY > 0u),
                       typename std::enable_if_t<IsConst>* = nullptr>
-            ROCWMMA_DEVICE constexpr static inline WorkgroupDimT workgroupDim();
+            ROCWMMA_DEVICE constexpr static inline WorkgroupDimT workgroupDim(sycl::sub_group& sub_group);
 
             template <bool IsConst                         = (TBlockX > 0u && TBlockY > 0u),
                       typename std::enable_if_t<!IsConst>* = nullptr>
-            ROCWMMA_DEVICE static inline WorkgroupDimT workgroupDim();
+            ROCWMMA_DEVICE static inline WorkgroupDimT workgroupDim(sycl::sub_group& sub_group);
         };
 
         /*
@@ -162,7 +162,7 @@ workgroup.
         ROCWMMA_DEVICE static inline WaveCoordT waveCoord(sycl::id<2>& id);
 
         // Global block (grid) coordinate of current wave
-        ROCWMMA_DEVICE static inline BlockCoordT blockCoord(sycl::id<2>& id);
+        ROCWMMA_DEVICE static inline BlockCoordT blockCoord(sycl::sub_group& sub_group);
 
         // Matrix coordinate of current wave
         ROCWMMA_DEVICE static inline MatrixCoordT matrixCoord(sycl::id<2>& id);
@@ -173,7 +173,7 @@ workgroup.
 
         /// Current workgroup perspective
 
-        ROCWMMA_DEVICE static inline WorkgroupDimT workgroupDim();
+        ROCWMMA_DEVICE static inline WorkgroupDimT workgroupDim(sycl::sub_group& sub_group);
 
         /// Coordinate override helpers
 

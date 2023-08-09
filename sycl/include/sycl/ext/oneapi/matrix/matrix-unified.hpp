@@ -286,11 +286,13 @@ joint_matrix_load(Group sg,
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
-#if defined(__NVPTX__)
+#if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
   std::ignore = sg;
   sycl::ext::oneapi::detail::load_multiplicand_cuda<S, T, NumRows, NumCols, Use,
                                                     Layout, Space>(
       res.cuda_impl, src, stride);
+#elif defined(__HIP_PLATFORM_AMD__)
+  rocwmma::load_matrix_sync<Space, IsDecorated>(res.hip_impl, src, stride, sg);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
@@ -322,11 +324,13 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
-#if defined(__NVPTX__)
+#if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
   std::ignore = sg;
   sycl::ext::oneapi::detail::joint_matrix_store_cuda<T, NumRows, NumCols,
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
+#elif defined(__HIP_PLATFORM_AMD__)
+  rocwmma::store_matrix_sync<Space, IsDecorated>(dst, src.hip_impl, stride, sg);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
@@ -382,7 +386,7 @@ inline __SYCL_ALWAYS_INLINE
                      sycl::ext::oneapi::experimental::matrix::layout::dynamic>
             &C) {
 #if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
+#if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
   std::ignore = sg;
   if constexpr (std::is_same<Ta, Tb>::value) {
     joint_matrix<Group, Tc, use::accumulator, M, N,
@@ -396,6 +400,11 @@ inline __SYCL_ALWAYS_INLINE
     assert(false && "Ta != Tb : In the CUDA backend joint_matrix_mad "
                     "requires that joint_matrix data types Ta and Tb match");
   }
+#elif defined(__HIP_PLATFORM_AMD__)
+    joint_matrix<Group, Tc, use::accumulator, M, N,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic>
+        D;
+  rocwmma::mma_sync<M, N, K, Ta, Tc, LayoutA, LayoutB>(D.hip_impl, A.hip_impl, B.hip_impl, C.hip_impl);
 #else
   joint_matrix<Group, Tc, use::accumulator, M, N, layout::dynamic> res;
   if constexpr (std::is_same<Ta, uint16_t>::value &&

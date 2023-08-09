@@ -163,17 +163,19 @@ namespace rocwmma
         Broadcaster::exec(frag.mAccess, value);
     }
 
-    template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
+    template <sycl::access::address_space Space, sycl::access::decorated IsDecorated,
+          typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
           sycl::ext::oneapi::experimental::matrix::layout DataLayout>
     ROCWMMA_DEVICE void
         load_matrix_sync(fragment<DataT, Use, Rows, Cols, DataLayout>& frag,
-                         const DataT*                                  data,
-                         uint32_t                                      ldm,
+                         sycl::multi_ptr<DataT, Space, IsDecorated>     data,
+                         uint32_t                                       ldm,
                          sycl::sub_group& sg)
     {
         using FragT  = typename std::decay<decltype(frag)>::type;
         using Loader = typename GetIOConfig_t<FragT>::Loader;
+        auto tileptr = reinterpret_cast<const DataT *>(data.get());
 
         // // Sanity checks
         // static_assert(!std::is_same<DataLayout, void>::value,
@@ -185,7 +187,8 @@ namespace rocwmma
             "Fragment access and load output types do not match");
 
         // Load then implicit pack
-        Loader::exec(frag.mAccess, data, ldm, sg.get_local_id());
+        auto id = sg.get_local_id();
+        Loader::exec(frag.mAccess, tileptr, ldm, id);
     }
 
     // template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
@@ -209,13 +212,16 @@ namespace rocwmma
     //     }
     // }
 
-    template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
+    template <sycl::access::address_space Space, sycl::access::decorated IsDecorated,
+          typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
           sycl::ext::oneapi::experimental::matrix::layout DataLayout>
     ROCWMMA_DEVICE void
-        store_matrix_sync(DataT*                                              data,
+        store_matrix_sync(sycl::multi_ptr<DataT, Space, IsDecorated>          data,
                           fragment<DataT, Use, Rows, Cols, DataLayout> const& frag,
-                          uint32_t                                             ldm)
+                          uint32_t                                            ldm,
+                          sycl::sub_group& sg)
+
     {
         using FragT  = typename std::decay<decltype(frag)>::type;
         using Storer = typename GetIOConfig_t<FragT>::Storer;
@@ -230,7 +236,8 @@ namespace rocwmma
             "Fragment access and store input types do not match");
 
         // Implicit unpack and then store
-        Storer::exec(data, frag.mAccess, ldm);
+        auto id = sg.get_local_id();
+        Storer::exec(data, frag.mAccess, ldm, id);
     }
 
     // template <typename MatrixT, uint32_t BlockM, uint32_t BlockN, uint32_t BlockK, typename DataT>
@@ -254,33 +261,35 @@ namespace rocwmma
     //     }
     // }
 
-    // template <uint32_t BlockM,
-    //           uint32_t BlockN,
-    //           uint32_t BlockK,
-    //           typename InputT,
-    //           typename ComputeT,
-    //           typename LayoutA,
-    //           typename LayoutB,
-    //           typename LayoutC,
-    //           typename LayoutD>
-    // ROCWMMA_DEVICE void
-    //     mma_sync(fragment<accumulator, BlockM, BlockN, BlockK, ComputeT, LayoutD>&       d,
-    //              fragment<matrix_a, BlockM, BlockN, BlockK, InputT, LayoutA> const&      a,
-    //              fragment<matrix_b, BlockM, BlockN, BlockK, InputT, LayoutB> const&      b,
-    //              fragment<accumulator, BlockM, BlockN, BlockK, ComputeT, LayoutC> const& c)
-    // {
-    //     using FragA = typename std::decay<decltype(a)>::type;
-    //     using FragB = typename std::decay<decltype(b)>::type;
+    template <size_t BlockM,
+              size_t BlockN,
+              size_t BlockK,
+              typename InputT,
+              typename ComputeT,
+              sycl::ext::oneapi::experimental::matrix::layout LayoutA,
+              sycl::ext::oneapi::experimental::matrix::layout LayoutB,
+              sycl::ext::oneapi::experimental::matrix::layout LayoutC,
+              sycl::ext::oneapi::experimental::matrix::layout LayoutD>
+    ROCWMMA_DEVICE void
+        mma_sync(fragment<ComputeT, sycl::ext::oneapi::experimental::matrix::use::accumulator, BlockM, BlockN, LayoutD>&       d,
+                 fragment<InputT, sycl::ext::oneapi::experimental::matrix::use::a, BlockM, BlockK, LayoutA> const&             a,
+                 fragment<InputT, sycl::ext::oneapi::experimental::matrix::use::b, BlockK, BlockN, LayoutB> const&             b,
+                 fragment<ComputeT, sycl::ext::oneapi::experimental::matrix::use::accumulator, BlockM, BlockN, LayoutC> const& c)
+    {
+        using FragA = typename std::decay<decltype(a)>::type;
+        using FragB = typename std::decay<decltype(b)>::type;
 
-    //     // Sanity check
-    //     // static_assert(detail::MfmaCheck<FragA, FragB>::value,
-    //     //              "A and B fragment layouts must be orthogonal");
-    //     using MMA = typename std::conditional_t<ROCWMMA_ARCH_MI,
-    //                                             Mfma<InputT, ComputeT, BlockM, BlockN, BlockK>,
-    //                                             Wmma<InputT, ComputeT, BlockM, BlockN, BlockK>>;
+        // Sanity check
+        // static_assert(detail::MfmaCheck<FragA, FragB>::value,
+        //              "A and B fragment layouts must be orthogonal");
+        // using MMA = typename std::conditional_t<ROCWMMA_ARCH_MI,
+        //                                         Mfma<InputT, ComputeT, BlockM, BlockN, BlockK>,
+        //                                         Wmma<InputT, ComputeT, BlockM, BlockN, BlockK>>;
+        using MMA = Wmma<InputT, ComputeT, BlockM, BlockN, BlockK>;
 
-    //     (*d) = MMA::exec(*a, *b, *c);
-    // }
+
+        (*d) = MMA::exec(*a, *b, *c);
+    }
 
     // ROCWMMA_DEVICE void synchronize_workgroup()
     // {
