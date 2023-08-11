@@ -1,0 +1,193 @@
+// REQUIRES: hip
+
+// RUN: %clangxx -Xclang -no-opaque-pointers -fsycl-device-only -fsycl-targets=amd_gpu_gfx90a -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -S -Xclang -emit-llvm %s -o out.ll -D__HIP_PLATFORM_AMD__=1 -D__HIPCC__=1
+
+#include <sycl/sycl.hpp>
+
+using namespace sycl;
+using namespace sycl::ext::oneapi::experimental::matrix;
+
+constexpr int stride = 16;
+
+int main() {
+
+  buffer<sycl::half, 1> bufA(nullptr, range<1>(1));
+  buffer<sycl::half, 1> bufB(nullptr, range<1>(1));
+  buffer<sycl::half, 1> bufC(nullptr, range<1>(1));
+  buffer<sycl::half, 1> bufD(nullptr, range<1>(1));
+
+  queue q;
+
+  q.submit([&](handler &cgh) {
+    sycl::accessor<sycl::half, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
+        accA(bufA, cgh);
+    sycl::accessor<sycl::half, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
+        accB(bufB, cgh);
+    sycl::accessor<sycl::half, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
+        accC(bufC, cgh);
+    sycl::accessor<sycl::half, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
+        accD(bufD, cgh);
+
+    cgh.parallel_for<class row_row_m16n16k16>(
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+          sycl::sub_group sg = item.get_sub_group();
+
+          joint_matrix<sub_group, sycl::half, use::accumulator, 16, 16> sub_c{};
+          joint_matrix<sub_group, sycl::half, use::a, 16, 16, layout::row_major>
+              sub_a{};
+          joint_matrix<sub_group, sycl::half, use::b, 16, 16, layout::row_major>
+              sub_b{};
+
+          joint_matrix_load(
+              sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::row_major);
+          joint_matrix_load(
+              sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          joint_matrix_load(
+              sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_store(
+              sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::row_major);
+        });
+
+    cgh.parallel_for<class col_col_m16n16k16>(
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+          sycl::sub_group sg = item.get_sub_group();
+
+          joint_matrix<sub_group, sycl::half, use::accumulator, 16, 16> sub_c{};
+          joint_matrix<sub_group, sycl::half, use::a, 16, 16, layout::col_major>
+              sub_a{};
+          joint_matrix<sub_group, sycl::half, use::b, 16, 16, layout::col_major>
+              sub_b{};
+
+          joint_matrix_load(
+              sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::col_major);
+          joint_matrix_load(
+              sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          joint_matrix_load(
+              sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_store(
+              sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::col_major);
+        });
+
+    cgh.parallel_for<class row_row_m32n8k16>(
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+          sycl::sub_group sg = item.get_sub_group();
+
+          joint_matrix<sub_group, sycl::half, use::accumulator, 32, 8> sub_c{};
+          joint_matrix<sub_group, sycl::half, use::a, 32, 16, layout::row_major>
+              sub_a{};
+          joint_matrix<sub_group, sycl::half, use::b, 16, 8, layout::row_major>
+              sub_b{};
+
+          joint_matrix_load(
+              sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::row_major);
+          joint_matrix_load(
+              sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          joint_matrix_load(
+              sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_store(
+              sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::row_major);
+        });
+
+    cgh.parallel_for<class col_col_m32n8k16>(
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+          sycl::sub_group sg = item.get_sub_group();
+
+          joint_matrix<sub_group, sycl::half, use::accumulator, 32, 8> sub_c{};
+          joint_matrix<sub_group, sycl::half, use::a, 32, 16, layout::col_major>
+              sub_a{};
+          joint_matrix<sub_group, sycl::half, use::b, 16, 8, layout::col_major>
+              sub_b{};
+
+          joint_matrix_load(
+              sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::col_major);
+          joint_matrix_load(
+              sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          joint_matrix_load(
+              sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_store(
+              sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::col_major);
+        });
+
+    cgh.parallel_for<class row_row_m8n32k16>(
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+          sycl::sub_group sg = item.get_sub_group();
+
+          joint_matrix<sub_group, sycl::half, use::accumulator, 8, 32> sub_c{};
+          joint_matrix<sub_group, sycl::half, use::a, 8, 16, layout::row_major>
+              sub_a{};
+          joint_matrix<sub_group, sycl::half, use::b, 16, 32, layout::row_major>
+              sub_b{};
+
+          joint_matrix_load(
+              sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::row_major);
+          joint_matrix_load(
+              sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          joint_matrix_load(
+              sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_store(
+              sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::row_major);
+        });
+
+    cgh.parallel_for<class col_col_m8n32k16>(
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+          sycl::sub_group sg = item.get_sub_group();
+
+          joint_matrix<sub_group, sycl::half, use::accumulator, 8, 32> sub_c{};
+          joint_matrix<sub_group, sycl::half, use::a, 8, 16, layout::col_major>
+              sub_a{};
+          joint_matrix<sub_group, sycl::half, use::b, 16, 32, layout::col_major>
+              sub_b{};
+
+          joint_matrix_load(
+              sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::col_major);
+          joint_matrix_load(
+              sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          joint_matrix_load(
+              sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
+              stride);
+          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_store(
+              sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
+              stride, layout::col_major);
+        });
+  });
+
+  return 0;
+};

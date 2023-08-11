@@ -60,6 +60,15 @@ template <> struct to_hip_type<int32_t> {
   using type = rocwmma::int32_t;
 };
 
+template <> struct to_hip_type<uint8_t> {
+  using type = rocwmma::uint8_t;
+};
+
+template <> struct to_hip_type<uint32_t> {
+  using type = rocwmma::uint32_t;
+};
+
+
 namespace detail {
 
 template <typename InputT, typename OutputT> struct amdgcn_convert {
