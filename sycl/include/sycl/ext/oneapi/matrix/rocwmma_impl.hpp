@@ -40,7 +40,7 @@
 #include "internal/io_traits.hpp"
 #include "internal/layout.hpp"
 #include "internal/mapping_util.hpp"
-// #include "internal/mfma.hpp"
+#include "internal/mfma.hpp"
 #include "internal/opaque_load.hpp"
 #include "internal/opaque_store.hpp"
 #include "internal/pack_util.hpp"
@@ -163,16 +163,15 @@ namespace rocwmma
         Broadcaster::exec(frag.mAccess, value);
     }
 
-    template <sycl::access::address_space Space, sycl::access::decorated IsDecorated,
-          typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
-          size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout DataLayout>
+    template <sycl::access::address_space Space,
+              sycl::access::decorated IsDecorated, typename DataT, typename InT,
+              sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
+              size_t Cols,
+              sycl::ext::oneapi::experimental::matrix::layout DataLayout>
     ROCWMMA_DEVICE void
-        load_matrix_sync(fragment<DataT, Use, Rows, Cols, DataLayout>& frag,
-                         sycl::multi_ptr<DataT, Space, IsDecorated>     data,
-                         uint32_t                                       ldm,
-                         sycl::sub_group& sg)
-    {
+    load_matrix_sync(fragment<DataT, Use, Rows, Cols, DataLayout> &frag,
+                     sycl::multi_ptr<InT, Space, IsDecorated> data,
+                     uint32_t ldm, sycl::sub_group &sg) {
         using FragT  = typename std::decay<decltype(frag)>::type;
         using Loader = typename GetIOConfig_t<FragT>::Loader;
         auto tileptr = reinterpret_cast<const DataT *>(data.get());
@@ -212,19 +211,20 @@ namespace rocwmma
     //     }
     // }
 
-    template <sycl::access::address_space Space, sycl::access::decorated IsDecorated,
-          typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
-          size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout DataLayout>
+    template <sycl::access::address_space Space,
+              sycl::access::decorated IsDecorated, typename DataT, typename T,
+              sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
+              size_t Cols,
+              sycl::ext::oneapi::experimental::matrix::layout DataLayout>
     ROCWMMA_DEVICE void
-        store_matrix_sync(sycl::multi_ptr<DataT, Space, IsDecorated>          data,
-                          fragment<DataT, Use, Rows, Cols, DataLayout> const& frag,
-                          uint32_t                                            ldm,
-                          sycl::sub_group& sg)
+    store_matrix_sync(sycl::multi_ptr<T, Space, IsDecorated> data,
+                      fragment<DataT, Use, Rows, Cols, DataLayout> const &frag,
+                      uint32_t ldm, sycl::sub_group &sg)
 
     {
         using FragT  = typename std::decay<decltype(frag)>::type;
         using Storer = typename GetIOConfig_t<FragT>::Storer;
+        auto tileptr = reinterpret_cast<DataT *>(data.get());
 
         // // Sanity check
         // static_assert(!std::is_same<DataLayout, void>::value,
@@ -237,7 +237,7 @@ namespace rocwmma
 
         // Implicit unpack and then store
         auto id = sg.get_local_id();
-        Storer::exec(data, frag.mAccess, ldm, id);
+        Storer::exec(tileptr, frag.mAccess, ldm, id);
     }
 
     // template <typename MatrixT, uint32_t BlockM, uint32_t BlockN, uint32_t BlockK, typename DataT>

@@ -1,6 +1,6 @@
 // REQUIRES: hip
 
-// RUN: %clangxx -Xclang -no-opaque-pointers -fsycl-device-only -fsycl-targets=amd_gpu_gfx90a -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -S -Xclang -emit-llvm %s -o out.ll -D__HIP_PLATFORM_AMD__=1  -I/opt/rocm-5.4.3/include
+// RUN: %clangxx -Xclang -no-opaque-pointers -fsycl-device-only -fsycl-targets=amd_gpu_gfx90a -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -S -Xclang -emit-llvm %s -o out.ll -D__HIP_PLATFORM_AMD__=1 -D__HIPCC__=1
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -18,24 +18,24 @@ constexpr int K = 16; // number of cols of a/number of rows of b.
 int main() {
 
   queue q;
-  buffer<int32_t, 1> bufA(nullptr, range<1>(1));
-  buffer<int32_t, 1> bufB(nullptr, range<1>(1));
-  buffer<int32_t, 1> bufC(nullptr, range<1>(1));
-  buffer<int32_t, 1> bufD(nullptr, range<1>(1));
+  buffer<sycl::half, 1> bufA(nullptr, range<1>(1));
+  buffer<sycl::half, 1> bufB(nullptr, range<1>(1));
+  buffer<float, 1> bufC(nullptr, range<1>(1));
+  buffer<float, 1> bufD(nullptr, range<1>(1));
 
   size_t stride = 8;
 
   q.submit([&](handler &cgh) {
-    sycl::accessor<int32_t, 1, sycl::access::mode::read_write,
+    sycl::accessor<sycl::half, 1, sycl::access::mode::read_write,
                    sycl::target::device>
         accA(bufA, cgh);
-    sycl::accessor<int32_t, 1, sycl::access::mode::read_write,
+    sycl::accessor<sycl::half, 1, sycl::access::mode::read_write,
                    sycl::target::device>
         accB(bufB, cgh);
-    sycl::accessor<int32_t, 1, sycl::access::mode::read_write,
+    sycl::accessor<float, 1, sycl::access::mode::read_write,
                    sycl::target::device>
         accC(bufC, cgh);
-    sycl::accessor<int32_t, 1, sycl::access::mode::read_write,
+    sycl::accessor<float, 1, sycl::access::mode::read_write,
                    sycl::target::device>
         accD(bufD, cgh);
     cgh.parallel_for<class row_row>(
@@ -43,12 +43,12 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<sub_group, int32_t, use::a, M, K, layout::row_major>
+          joint_matrix<sub_group, sycl::half, use::a, M, K, layout::row_major>
               sub_a{};
-          joint_matrix<sub_group, int32_t, use::b, M, K, layout::col_major>
+          joint_matrix<sub_group, sycl::half, use::b, M, K, layout::col_major>
               sub_b{};
 
-          joint_matrix<sub_group, int32_t, use::accumulator, 16, 16> sub_c{};
+          joint_matrix<sub_group, float, use::accumulator, 16, 16> sub_c{};
 
           joint_matrix_load(
               sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),

@@ -27,7 +27,8 @@ struct joint_matrix {
   sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols, Layout>
       cuda_impl;
 #elif defined(__HIP_PLATFORM_AMD__)
-  rocwmma::fragment<T, Use, Rows, Cols, Layout> hip_impl;
+  using HipType = rocwmma::to_hip_type<T>::type;
+  rocwmma::fragment<HipType, Use, Rows, Cols, Layout> hip_impl;
 #elif defined(__SPIR__)
   __spv::__spirv_JointMatrixINTEL<
       T, Rows, Cols, spv_matrix_layout_traits<Layout>::value,
@@ -292,7 +293,9 @@ joint_matrix_load(Group sg,
                                                     Layout, Space>(
       res.cuda_impl, src, stride);
 #elif defined(__HIP_PLATFORM_AMD__)
-  rocwmma::load_matrix_sync<Space, IsDecorated>(res.hip_impl, src, stride, sg);
+  using HipType = rocwmma::to_hip_type<S>::type;
+  rocwmma::load_matrix_sync<Space, IsDecorated, HipType>(res.hip_impl, src,
+                                                         stride, sg);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
@@ -313,11 +316,12 @@ joint_matrix_load(Group sg,
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
-template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          access::address_space Space, access::decorated IsDecorated>
+template <typename Group, typename T, typename S, size_t NumRows,
+          size_t NumCols, access::address_space Space,
+          access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     Group sg,
-    joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
+    joint_matrix<Group, S, use::accumulator, NumRows, NumCols,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
@@ -330,7 +334,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
 #elif defined(__HIP_PLATFORM_AMD__)
-  rocwmma::store_matrix_sync<Space, IsDecorated>(dst, src.hip_impl, stride, sg);
+  using HipType = rocwmma::to_hip_type<S>::type;
+  rocwmma::store_matrix_sync<Space, IsDecorated, HipType>(dst, src.hip_impl,
+                                                          stride, sg);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
@@ -401,10 +407,13 @@ inline __SYCL_ALWAYS_INLINE
                     "requires that joint_matrix data types Ta and Tb match");
   }
 #elif defined(__HIP_PLATFORM_AMD__)
-    joint_matrix<Group, Tc, use::accumulator, M, N,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic>
-        D;
-  rocwmma::mma_sync<M, N, K, Ta, Tc, LayoutA, LayoutB>(D.hip_impl, A.hip_impl, B.hip_impl, C.hip_impl);
+  using HipTypeC = rocwmma::to_hip_type<Tc>::type;
+  using HipTypeA = rocwmma::to_hip_type<Ta>::type;
+  joint_matrix<Group, Tc, use::accumulator, M, N,
+               sycl::ext::oneapi::experimental::matrix::layout::dynamic>
+      D;
+  rocwmma::mma_sync<M, N, K, HipTypeA, HipTypeC, LayoutA, LayoutB>(
+      D.hip_impl, A.hip_impl, B.hip_impl, C.hip_impl);
 #else
   joint_matrix<Group, Tc, use::accumulator, M, N, layout::dynamic> res;
   if constexpr (std::is_same<Ta, uint16_t>::value &&

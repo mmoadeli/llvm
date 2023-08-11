@@ -289,15 +289,15 @@ template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
     //   \tparam DataT data type
     //   \tparam DataLayout in-memory layout as col_major or row_major
     // */
-    template <sycl::access::address_space Space, sycl::access::decorated IsDecorated,
-          typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
-          size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout DataLayout>
+    template <sycl::access::address_space Space,
+              sycl::access::decorated IsDecorated, typename DataT, typename InT,
+              sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
+              size_t Cols,
+              sycl::ext::oneapi::experimental::matrix::layout DataLayout>
     ROCWMMA_DEVICE void
-        load_matrix_sync(fragment<DataT, Use, Rows, Cols, DataLayout>& frag,
-                         sycl::multi_ptr<DataT, Space, IsDecorated>    data,
-                         uint32_t                                      ldm,
-                         sycl::sub_group& sg);
+    load_matrix_sync(fragment<DataT, Use, Rows, Cols, DataLayout> &frag,
+                     sycl::multi_ptr<InT, Space, IsDecorated> data,
+                     uint32_t ldm, sycl::sub_group &sg);
 
     // //! Loads the entire fragment from the data pointer according to its matrix layout.Data pointer may point to either local or global memory. This overload provides a run-time ability to choose the data layout of the target fragment.
     // /*!
@@ -326,15 +326,15 @@ template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
       \tparam DataT data type
       \tparam DataLayout in-memory layout as col_major or row_major
     */
-    template <sycl::access::address_space Space, sycl::access::decorated IsDecorated,
-          typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
-          size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout DataLayout>
+    template <sycl::access::address_space Space,
+              sycl::access::decorated IsDecorated, typename DataT, typename T,
+              sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
+              size_t Cols,
+              sycl::ext::oneapi::experimental::matrix::layout DataLayout>
     ROCWMMA_DEVICE void
-        store_matrix_sync(sycl::multi_ptr<DataT, Space, IsDecorated>          data,
-                          fragment<DataT, Use, Rows, Cols, DataLayout> const& frag,
-                          uint32_t                                            ldm,
-                          sycl::sub_group& sg);
+    store_matrix_sync(sycl::multi_ptr<T, Space, IsDecorated> data,
+                      fragment<DataT, Use, Rows, Cols, DataLayout> const &frag,
+                      uint32_t ldm, sycl::sub_group &sg);
 
     // //!  Stores the entire fragment to the data pointer according to its matrix layout. Data pointer may point to either local or global memory. This overload provides a run-time ability to choose the data layout of the target fragment.
     // /*!

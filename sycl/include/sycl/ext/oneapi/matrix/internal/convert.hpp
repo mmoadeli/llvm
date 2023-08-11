@@ -30,18 +30,43 @@
 
 namespace rocwmma
 {
+template <typename Type> struct to_hip_type;
 
-    namespace detail
-    {
+template <> struct to_hip_type<sycl::ext::oneapi::bfloat16> {
+  using type = bfloat16_t;
+};
 
-        template <typename InputT, typename OutputT>
-        struct amdgcn_convert
-        {
-            template <uint32_t NumRegs>
-            ROCWMMA_DEVICE static inline auto exec(VecT<InputT, NumRegs> const& regsIn)
-                -> VecT<OutputT, NumRegs>
-            {
-                VecT<OutputT, NumRegs> result;
+template <> struct to_hip_type<float16_t> {
+  using type = float16_t;
+};
+
+template <> struct to_hip_type<float> {
+  using type = float32_t;
+};
+
+template <> struct to_hip_type<float64_t> {
+  using type = float64_t;
+};
+
+template <> struct to_hip_type<sycl::half> {
+  using type = rocwmma::hfloat16_t;
+};
+
+template <> struct to_hip_type<int8_t> {
+  using type = rocwmma::int8_t;
+};
+
+template <> struct to_hip_type<int32_t> {
+  using type = rocwmma::int32_t;
+};
+
+namespace detail {
+
+template <typename InputT, typename OutputT> struct amdgcn_convert {
+  template <uint32_t NumRegs>
+  ROCWMMA_DEVICE static inline auto exec(VecT<InputT, NumRegs> const &regsIn)
+      -> VecT<OutputT, NumRegs> {
+    VecT<OutputT, NumRegs> result;
 
 #pragma unroll
                 for(unsigned i = 0; i < NumRegs; i++)
@@ -49,8 +74,8 @@ namespace rocwmma
                     result.data[i] = static_cast<OutputT>(regsIn.data[i]);
                 }
                 return result;
-            }
-        };
+  }
+};
 
         template <typename T>
         struct amdgcn_convert<T, T>
@@ -98,7 +123,7 @@ namespace rocwmma
             }
         };
 
-    } // namespace detail
+        } // namespace detail
 
     template <typename InputT, typename OutputT>
     using Convert = detail::amdgcn_convert<InputT, OutputT>;
