@@ -70,7 +70,7 @@ namespace rocwmma
     template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
           sycl::ext::oneapi::experimental::matrix::layout Layout>
-    __device__
+    ROCWMMA_DEVICE
         fragment<T, Use, Rows, Cols, Layout>::fragment(const fragment& other)
         : mStorage(other.mStorage)
     {
@@ -79,7 +79,7 @@ namespace rocwmma
     template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
           sycl::ext::oneapi::experimental::matrix::layout Layout>
-    __device__ fragment<T, Use, Rows, Cols, Layout>&
+    ROCWMMA_DEVICE fragment<T, Use, Rows, Cols, Layout>&
         fragment<T, Use, Rows, Cols, Layout>::operator=(
             const fragment<T, Use, Rows, Cols, Layout>& other)
     {
@@ -90,7 +90,7 @@ namespace rocwmma
     template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
           sycl::ext::oneapi::experimental::matrix::layout Layout>
-    __device__ inline T&
+    ROCWMMA_DEVICE inline T&
         fragment<T, Use, Rows, Cols, Layout>::operator[](uint32_t index)
     {
         return mAccess.data[index];
@@ -98,7 +98,8 @@ namespace rocwmma
 
     template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout Layout>    __device__ inline auto fragment<T, Use, Rows, Cols, Layout>::operator*() ->
+          sycl::ext::oneapi::experimental::matrix::layout Layout>
+    ROCWMMA_DEVICE inline auto fragment<T, Use, Rows, Cols, Layout>::operator*() ->
         typename Traits::StorageT&
     {
         return mStorage;
@@ -106,7 +107,8 @@ namespace rocwmma
 
     template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout Layout>    __device__ inline T const&
+          sycl::ext::oneapi::experimental::matrix::layout Layout>
+    ROCWMMA_DEVICE inline T const&
         fragment<T, Use, Rows, Cols, Layout>::operator[](uint32_t index) const
     {
         return mAccess.data[index];
@@ -114,7 +116,8 @@ namespace rocwmma
 
     template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout Layout>    __device__ inline auto
+          sycl::ext::oneapi::experimental::matrix::layout Layout>
+    ROCWMMA_DEVICE inline auto
         fragment<T, Use, Rows, Cols, Layout>::operator*() const ->
         typename Traits::StorageT const&
     {
@@ -123,7 +126,8 @@ namespace rocwmma
 
     template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout Layout>    __device__ constexpr inline uint32_t
+          sycl::ext::oneapi::experimental::matrix::layout Layout>
+    ROCWMMA_DEVICE constexpr inline uint32_t
         fragment<T, Use, Rows, Cols, Layout>::blockDim()
     {
         return IOConfig::BlockDim;
@@ -131,7 +135,8 @@ namespace rocwmma
 
     template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout Layout>    __device__ constexpr inline uint32_t
+          sycl::ext::oneapi::experimental::matrix::layout Layout>
+    ROCWMMA_DEVICE constexpr inline uint32_t
         fragment<T, Use, Rows, Cols, Layout>::kDim()
     {
         return IOConfig::KDim;
@@ -139,7 +144,8 @@ namespace rocwmma
 
     template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout Layout>    __device__ constexpr inline uint32_t
+          sycl::ext::oneapi::experimental::matrix::layout Layout>
+    ROCWMMA_DEVICE constexpr inline uint32_t
         fragment<T, Use, Rows, Cols, Layout>::size()
     {
         return num_elements;
@@ -150,7 +156,7 @@ namespace rocwmma
           sycl::ext::oneapi::experimental::matrix::layout DataLayout>
     ROCWMMA_DEVICE void
         fill_fragment(fragment<DataT, Use, Rows, Cols, DataLayout>& frag,
-                      DataT                                                         value)
+                      DataT                                          value)
     {
         using FragT       = typename std::decay<decltype(frag)>::type;
         using Broadcaster = typename GetIOConfig_t<FragT>::Broadcaster;
@@ -192,7 +198,7 @@ namespace rocwmma
 
     // template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
     //       size_t Rows, size_t Cols>
-    // __device__ void load_matrix_sync(fragment<DataT, Use, Rows, Cols, DataLayout>& frag,
+    // ROCWMMA_DEVICE void load_matrix_sync(fragment<DataT, Use, Rows, Cols, DataLayout>& frag,
     //                                  const DataT*                                      data,
     //                                  uint32_t                                          ldm,
     //       sycl::ext::oneapi::experimental::matrix::layout layout)
@@ -280,13 +286,12 @@ namespace rocwmma
         using FragB = typename std::decay<decltype(b)>::type;
 
         // Sanity check
-        // static_assert(detail::MfmaCheck<FragA, FragB>::value,
-        //              "A and B fragment layouts must be orthogonal");
-        // using MMA = typename std::conditional_t<ROCWMMA_ARCH_MI,
-        //                                         Mfma<InputT, ComputeT, BlockM, BlockN, BlockK>,
-        //                                         Wmma<InputT, ComputeT, BlockM, BlockN, BlockK>>;
-        using MMA = Wmma<InputT, ComputeT, BlockM, BlockN, BlockK>;
-
+        static_assert(detail::MfmaCheck<FragA, FragB>::value,
+                     "A and B fragment layouts must be orthogonal");
+        using MMA = typename std::conditional_t<ROCWMMA_ARCH_MI,
+                                                Mfma<InputT, ComputeT, BlockM, BlockN, BlockK>,
+                                                Wmma<InputT, ComputeT, BlockM, BlockN, BlockK>>;
+//        using MMA = Wmma<InputT, ComputeT, BlockM, BlockN, BlockK>;
 
         (*d) = MMA::exec(*a, *b, *c);
     }

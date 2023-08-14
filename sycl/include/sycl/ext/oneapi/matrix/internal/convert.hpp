@@ -71,11 +71,14 @@ template <> struct to_hip_type<uint32_t> {
 
 namespace detail {
 
-template <typename InputT, typename OutputT> struct amdgcn_convert {
-  template <uint32_t NumRegs>
-  ROCWMMA_DEVICE static inline auto exec(VecT<InputT, NumRegs> const &regsIn)
-      -> VecT<OutputT, NumRegs> {
-    VecT<OutputT, NumRegs> result;
+        template <typename InputT, typename OutputT>
+        struct amdgcn_convert
+        {
+            template <uint32_t NumRegs>
+            ROCWMMA_DEVICE static inline auto exec(VecT<InputT, NumRegs> const& regsIn)
+                -> VecT<OutputT, NumRegs>
+            {
+                VecT<OutputT, NumRegs> result;
 
 #pragma unroll
                 for(unsigned i = 0; i < NumRegs; i++)
@@ -83,8 +86,8 @@ template <typename InputT, typename OutputT> struct amdgcn_convert {
                     result.data[i] = static_cast<OutputT>(regsIn.data[i]);
                 }
                 return result;
-  }
-};
+            }
+        };
 
         template <typename T>
         struct amdgcn_convert<T, T>
@@ -132,7 +135,7 @@ template <typename InputT, typename OutputT> struct amdgcn_convert {
             }
         };
 
-        } // namespace detail
+    } // namespace detail
 
     template <typename InputT, typename OutputT>
     using Convert = detail::amdgcn_convert<InputT, OutputT>;

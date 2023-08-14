@@ -187,9 +187,11 @@ joint_matrix_fill(Group sg,
                   joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
                   const T2 &v) {
 #if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
+#if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
   std::ignore = sg;
   res.cuda_impl.wi_marray = v;
+#elif defined(__HIP_PLATFORM_AMD__)
+  rocwmma::fill_fragment(res.hip_impl, v);
 #else
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<

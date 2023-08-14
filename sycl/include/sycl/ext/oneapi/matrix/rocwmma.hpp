@@ -260,35 +260,32 @@ template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
         using element_type                     = DataT;
     };
 
-    // //! Fills the entire fragment with the desired value.
-    // /*!
-    //   \param frag Fragment of type MatrixT with its associated block sizes, data type and layout
-    //   \param value Value of type DataT.
-    //   \tparam Matrix fragment context
-    //   \tparam BlockM/N/K block dimensions
-    //   \tparam DataT data type
-    //   \tparam DataLayout in-memory layout as col_major or row_major
-    // */
-    // template <typename MatrixT,
-    //           uint32_t BlockM,
-    //           uint32_t BlockN,
-    //           uint32_t BlockK,
-    //           typename DataT,
-    //           typename DataLayout>
-    // ROCWMMA_DEVICE void
-    //     fill_fragment(fragment<MatrixT, BlockM, BlockN, BlockK, DataT, DataLayout>& frag,
-    //                   DataT                                                         value);
+    //! Fills the entire fragment with the desired value.
+    /*!
+      \param frag Fragment of type MatrixT with its associated block sizes, data type and layout
+      \param value Value of type DataT.
+      \tparam Matrix fragment context
+      \tparam BlockM/N/K block dimensions
+      \tparam DataT data type
+      \tparam DataLayout in-memory layout as col_major or row_major
+    */
+    template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
+          size_t Rows, size_t Cols,
+          sycl::ext::oneapi::experimental::matrix::layout DataLayout>
+    ROCWMMA_DEVICE void
+        fill_fragment(fragment<DataT, Use, Rows, Cols, DataLayout>& frag,
+                      DataT                                         value);
 
-    // //! Loads the entire fragment from the data pointer according to its matrix and data layouts. Data pointer may point to either local or global memory.
-    // /*!
-    //   \param frag Fragment of type MatrixT with its associated block sizes, data type and layout
-    //   \param data Data pointer to global/local memory
-    //   \param ldm Leading dimension size
-    //   \tparam MatrixT fragment context
-    //   \tparam BlockM/N/K block dimensions
-    //   \tparam DataT data type
-    //   \tparam DataLayout in-memory layout as col_major or row_major
-    // */
+    //! Loads the entire fragment from the data pointer according to its matrix and data layouts. Data pointer may point to either local or global memory.
+    /*!
+      \param frag Fragment of type MatrixT with its associated block sizes, data type and layout
+      \param data Data pointer to global/local memory
+      \param ldm Leading dimension size
+      \tparam MatrixT fragment context
+      \tparam BlockM/N/K block dimensions
+      \tparam DataT data type
+      \tparam DataLayout in-memory layout as col_major or row_major
+    */
     template <sycl::access::address_space Space,
               sycl::access::decorated IsDecorated, typename DataT, typename InT,
               sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
@@ -299,17 +296,17 @@ template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
                      sycl::multi_ptr<InT, Space, IsDecorated> data,
                      uint32_t ldm, sycl::sub_group &sg);
 
-    // //! Loads the entire fragment from the data pointer according to its matrix layout.Data pointer may point to either local or global memory. This overload provides a run-time ability to choose the data layout of the target fragment.
-    // /*!
-    //   \param frag Fragment of type MatrixT with its associated block sizes, data type and layout
-    //   \param data Data pointer to global/local memory
-    //   \param ldm Leading dimension size
-    //   \param layout Matrix layout
-    //   \tparam MatrixT fragment context
-    //   \tparam BlockM/N/K block dimensions
-    //   \tparam DataT data type
-    //   \tparam DataLayout in-memory layout as col_major or row_major
-    // */
+    //! Loads the entire fragment from the data pointer according to its matrix layout.Data pointer may point to either local or global memory. This overload provides a run-time ability to choose the data layout of the target fragment.
+    /*!
+      \param frag Fragment of type MatrixT with its associated block sizes, data type and layout
+      \param data Data pointer to global/local memory
+      \param ldm Leading dimension size
+      \param layout Matrix layout
+      \tparam MatrixT fragment context
+      \tparam BlockM/N/K block dimensions
+      \tparam DataT data type
+      \tparam DataLayout in-memory layout as col_major or row_major
+    */
     // template <typename MatrixT, uint32_t BlockM, uint32_t BlockN, uint32_t BlockK, typename DataT>
     // ROCWMMA_DEVICE void load_matrix_sync(fragment<MatrixT, BlockM, BlockN, BlockK, DataT>& frag,
     //                                      const DataT*                                      data,
@@ -336,17 +333,17 @@ template <typename DataT, sycl::ext::oneapi::experimental::matrix::use Use,
                       fragment<DataT, Use, Rows, Cols, DataLayout> const &frag,
                       uint32_t ldm, sycl::sub_group &sg);
 
-    // //!  Stores the entire fragment to the data pointer according to its matrix layout. Data pointer may point to either local or global memory. This overload provides a run-time ability to choose the data layout of the target fragment.
-    // /*!
-    //   \param frag Fragment of type MatrixT with its associated block sizes, data type and layout
-    //   \param data Data pointer to global/local memory
-    //   \param ldm Leading dimension size
-    //   \param layout Data layout
-    //   \tparam MatrixT fragment context
-    //   \tparam BlockM/N/K block dimensions
-    //   \tparam DataT data type
-    //   \tparam DataLayout in-memory layout as col_major or row_major
-    // */
+    //!  Stores the entire fragment to the data pointer according to its matrix layout. Data pointer may point to either local or global memory. This overload provides a run-time ability to choose the data layout of the target fragment.
+    /*!
+      \param frag Fragment of type MatrixT with its associated block sizes, data type and layout
+      \param data Data pointer to global/local memory
+      \param ldm Leading dimension size
+      \param layout Data layout
+      \tparam MatrixT fragment context
+      \tparam BlockM/N/K block dimensions
+      \tparam DataT data type
+      \tparam DataLayout in-memory layout as col_major or row_major
+    */
     // template <typename MatrixT, uint32_t BlockM, uint32_t BlockN, uint32_t BlockK, typename DataT>
     // ROCWMMA_DEVICE void
     //     store_matrix_sync(DataT*                                                  data,

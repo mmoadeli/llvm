@@ -49,10 +49,11 @@ namespace rocwmma
         template <uint32_t BlockDim,
                   uint32_t BlockK,
                   typename DataT,
-                  uint32_t TestWidth = std::is_same<DataT, float64_t>::value
-                                           ? 8u * Constants::AMDGCN_DWORD_SIZE_BYTES / (uint32_t)sizeof(DataT)
+                  uint32_t TestWidth
+                  = std::is_same<DataT, float64_t>::value
+                        ? 8u * Constants::AMDGCN_DWORD_SIZE_BYTES / (uint32_t)sizeof(DataT)
                         : // TODO: fp64 compiler bug
-                                           4u * Constants::AMDGCN_DWORD_SIZE_BYTES / (uint32_t)sizeof(DataT)>
+                        4u * Constants::AMDGCN_DWORD_SIZE_BYTES / (uint32_t)sizeof(DataT)>
         struct VecWidthTraits
         {
             enum : uint32_t
