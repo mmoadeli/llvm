@@ -291,8 +291,6 @@ namespace rocwmma
         using MMA = typename std::conditional_t<ROCWMMA_ARCH_MI,
                                                 Mfma<InputT, ComputeT, BlockM, BlockN, BlockK>,
                                                 Wmma<InputT, ComputeT, BlockM, BlockN, BlockK>>;
-//        using MMA = Wmma<InputT, ComputeT, BlockM, BlockN, BlockK>;
-
         (*d) = MMA::exec(*a, *b, *c);
     }
 

@@ -43,7 +43,7 @@ int main() {
                    sycl::target::device>
         accD(bufD, cgh);
 
-    cgh.parallel_for<class row_row>(
+    cgh.parallel_for<class row_col>(
         nd_range<2>({1, 32}, {1, 32}),
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
@@ -51,7 +51,7 @@ int main() {
           joint_matrix<sub_group, double, use::accumulator, M, N> sub_c{};
           joint_matrix<sub_group, double, use::a, M, K, layout::row_major>
               sub_a{};
-          joint_matrix<sub_group, double, use::b, K, N, layout::row_major>
+          joint_matrix<sub_group, double, use::b, K, N, layout::col_major>
               sub_b{};
 
           joint_matrix_load(
@@ -69,7 +69,7 @@ int main() {
               N, layout::row_major);
         });
 
-    cgh.parallel_for<class col_col>(
+    cgh.parallel_for<class col_row>(
         nd_range<2>({1, 32}, {1, 32}),
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
@@ -77,7 +77,7 @@ int main() {
           joint_matrix<sub_group, double, use::accumulator, M, N> sub_c{};
           joint_matrix<sub_group, double, use::a, M, K, layout::col_major>
               sub_a{};
-          joint_matrix<sub_group, double, use::b, K, N, layout::col_major>
+          joint_matrix<sub_group, double, use::b, K, N, layout::row_major>
               sub_b{};
 
           joint_matrix_load(
