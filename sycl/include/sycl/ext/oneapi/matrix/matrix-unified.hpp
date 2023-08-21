@@ -49,6 +49,10 @@ template <> struct to_hip_layout<matrix_layout::row_major> {
   using type = rocwmma::row_major;
 };
 
+template <> struct to_hip_layout<matrix_layout::dynamic> {
+  using type = void;
+};
+
 template <matrix_use, size_t, size_t> struct to_hip_use;
 
 template <size_t Rows, size_t Cols> struct to_hip_use<matrix_use::accumulator, Rows, Cols> {
@@ -435,12 +439,13 @@ joint_matrix_load(Group sg,
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
-template <typename Group, typename T, typename S, size_t NumRows,
+template <typename Group, typename T, size_t NumRows,
           size_t NumCols, access::address_space Space,
-          access::decorated IsDecorated, layout LA>
+          access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     Group sg,
-    joint_matrix<Group, S, use::accumulator, NumRows, NumCols, LA> &src,
+    joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -452,13 +457,15 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
 #elif defined(__HIP_PLATFORM_AMD__)
-  using HipType = to_hip_type<S>::type;
+  using HipType = to_hip_type<T>::type;
+  auto hip_layout = rocwmma::layout_t::mem_col_major; 
+  if (Layout == layout::row_major)
+    hip_layout = rocwmma::layout_t::mem_row_major;
   rocwmma::store_matrix_sync<typename to_hip_use<use::accumulator, NumRows, NumCols>::type,
                     to_hip_use<use::accumulator, NumRows, NumCols>::BlockM,
                     to_hip_use<use::accumulator, NumRows, NumCols>::BlockN,
                     to_hip_use<use::accumulator, NumRows, NumCols>::BlockK,
-                    HipType,
-                    typename to_hip_layout<LA>::type>(dst, src.hip_impl, stride);
+                    HipType>(dst, src.hip_impl, stride, hip_layout);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
