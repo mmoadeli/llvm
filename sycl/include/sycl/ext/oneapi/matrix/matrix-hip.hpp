@@ -170,6 +170,8 @@ void store_layoutT(
           tileptr[idx] = src.wi_marray[i];
         }
       }
+    } else {
+      assert(false && "Invalid dadimenstions!");
     }
 }
 
@@ -259,6 +261,8 @@ void joint_matrix_mad_hip(
     if constexpr (std::is_same_v<Tc, float>) {
       D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x4f32(A.data, B.data, C.wi_marray, 0, 0, 0);
     }
+  } else {
+    assert(false && "Invalid dimensions!");
   }
 }
 
