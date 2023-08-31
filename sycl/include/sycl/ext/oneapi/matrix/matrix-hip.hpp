@@ -138,17 +138,15 @@ template <
 void load_multiplicand_hip(
     joint_matrix_hip<S, Use, NumRows, NumCols, Layout> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group sg) {
-    auto tileptr = reinterpret_cast<const float *>(src.get());
-    auto destptr = reinterpret_cast<float *>(&res.data);
-    auto local_id = sg.get_local_id();
+  auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
+             sg.get_local_linear_id();
 
-    if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::layout::row_major) {
-      int idx = local_id[0] + NumCols * local_id[1];
-      res.data = tileptr[idx];
+  if constexpr (Layout ==
+                sycl::ext::oneapi::experimental::matrix::layout::row_major) {
+    res.data = src[idx];
     } else if constexpr (Layout ==
                           sycl::ext::oneapi::experimental::matrix::layout::col_major) {
-        int idx = local_id[1] + stride * local_id[0];
-        res.data = tileptr[idx];
+      res.data = src[(idx % NumRows) * NumCols + idx / NumRows];
     }
 }
 
@@ -164,14 +162,15 @@ void store_layoutT(
     auto local_id = sg.get_local_id();
     if constexpr (NumRows == 16 && NumCols == 16) {
       if constexpr (std::is_same_v<T, float>) {
-        auto tileptr = reinterpret_cast<float *>(dst.get());
+        auto ix = sg.get_group_linear_id() * sg.get_local_range()[0] +
+                  sg.get_local_linear_id();
         for (int i = 0; i < 4; ++i) {
-          const int idx = local_id[0] + i * NumCols + local_id[1] * 4 * NumCols;
-          tileptr[idx] = src.wi_marray[i];
+          const int idx = ix + i * NumCols;
+          dst[idx] = src.wi_marray[i];
         }
       }
     } else {
-      assert(false && "Invalid dadimenstions!");
+      static_assert(false && "Invalid dadimenstions!");
     }
 }
 
