@@ -162,11 +162,12 @@ void store_layoutT(
     auto local_id = sg.get_local_id();
     if constexpr (NumRows == 16 && NumCols == 16) {
       if constexpr (std::is_same_v<T, float>) {
-        auto ix = sg.get_group_linear_id() * sg.get_local_range()[0] +
-                  sg.get_local_linear_id();
+        auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
+                   sg.get_local_linear_id();
+        auto thread_x = idx / stride;
+        auto thread_y = idx % stride;
         for (int i = 0; i < 4; ++i) {
-          const int idx = ix + i * NumCols;
-          dst[idx] = src.wi_marray[i];
+          dst[thread_y + i * stride + thread_x * 4 * stride] = src.wi_marray[i];
         }
       }
     } else {
