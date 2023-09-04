@@ -47,13 +47,13 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 4, 16)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
-#define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(TYPE, M, N, SIZE)                  \
-  template <>                                                                   \
-  struct joint_matrix_hip<                                                      \
-      TYPE, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,    \
-      sycl::ext::oneapi::experimental::matrix::layout::dynamic> {               \
-    using vType = __attribute__( (__vector_size__(SIZE * sizeof(TYPE)) )) TYPE; \
-    vType wi_marray;                                                            \
+#define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(TYPE, M, N, SIZE)                 \
+  template <>                                                                  \
+  struct joint_matrix_hip<                                                     \
+      TYPE, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,   \
+      sycl::ext::oneapi::experimental::matrix::layout::dynamic> {              \
+    using vType = __attribute__((__vector_size__(SIZE * sizeof(TYPE)))) TYPE;  \
+    vType wi_marray = {0};                                                     \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 4)
@@ -93,32 +93,43 @@ get_layout_id<sycl::ext::oneapi::experimental::matrix::layout::col_major>() {
 
 template <sycl::ext::oneapi::experimental::matrix::layout Layout, typename S,
           typename T, size_t NumRows, size_t NumCols,
-          access::address_space Space, access::decorated IsDecorated>
+          access::address_space Space, access::decorated IsDecorated,
+          typename Group>
 void load_accumulator_layoutT(
     joint_matrix_hip<
         S, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride) {
+    multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
+  auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
+             sg.get_local_linear_id();
+  if constexpr (Layout ==
+                sycl::ext::oneapi::experimental::matrix::layout::row_major) {
+    res.wi_marray = {0};
+  } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                     layout::col_major) {
+    res.wi_marray = {0};
+  }
 };
 
-template <typename S, typename T, size_t NumRows, size_t NumCols,
-          access::address_space Space, access::decorated IsDecorated>
+template <typename Group, typename S, typename T, size_t NumRows,
+          size_t NumCols, access::address_space Space,
+          access::decorated IsDecorated>
 void load_accumulator_hip(
     joint_matrix_hip<
         S, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride,
-    sycl::ext::oneapi::experimental::matrix::layout Layout) {
+    sycl::ext::oneapi::experimental::matrix::layout Layout, Group &sg) {
   switch (Layout) {
   case sycl::ext::oneapi::experimental::matrix::layout::row_major:
     load_accumulator_layoutT<
         sycl::ext::oneapi::experimental::matrix::layout::row_major>(res, src,
-                                                                    stride);
+                                                                    stride, sg);
     break;
   case sycl::ext::oneapi::experimental::matrix::layout::col_major:
     load_accumulator_layoutT<
         sycl::ext::oneapi::experimental::matrix::layout::col_major>(res, src,
-                                                                    stride);
+                                                                    stride, sg);
     break;
   default:
     assert(false && "Invalid layout specified!");
@@ -126,18 +137,19 @@ void load_accumulator_hip(
 }
 
 template <
-    typename Group,
-    typename S, typename T, size_t NumRows, size_t NumCols,
+    typename Group, typename S, typename T, size_t NumRows, size_t NumCols,
     sycl::ext::oneapi::experimental::matrix::use Use,
     sycl::ext::oneapi::experimental::matrix::layout Layout,
     access::address_space Space, access::decorated IsDecorated,
     typename = typename std::enable_if_t<
-        (Layout == sycl::ext::oneapi::experimental::matrix::layout::row_major || 
-        Layout == sycl::ext::oneapi::experimental::matrix::layout::col_major) &&
-        (NumRows == 16 || NumRows == 4) && (NumCols == 16 || NumCols == 4) && std::is_same_v<S, float>>>
+        (Layout == sycl::ext::oneapi::experimental::matrix::layout::row_major ||
+         Layout ==
+             sycl::ext::oneapi::experimental::matrix::layout::col_major) &&
+        (NumRows == 16 || NumRows == 4) && (NumCols == 16 || NumCols == 4) &&
+        std::is_same_v<S, float>>>
 void load_multiplicand_hip(
     joint_matrix_hip<S, Use, NumRows, NumCols, Layout> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride, Group sg) {
+    multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
   auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
              sg.get_local_linear_id();
 
