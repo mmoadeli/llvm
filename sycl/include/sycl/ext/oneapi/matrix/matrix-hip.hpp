@@ -47,6 +47,31 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 4, 16)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
+#if defined(__SYCL_DEVICE_ONLY__)
+
+#define __SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(USE, M, N, SIZE)                 \
+  template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \
+  struct joint_matrix_hip<                                                     \
+      sycl::half, USE, M, N, Layout,                                           \
+      typename std::enable_if_t<                                               \
+          Layout ==                                                            \
+              sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
+          Layout ==                                                            \
+              sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
+    using vType =                                                              \
+        __attribute__((__vector_size__(SIZE * sizeof(__fp16)))) __fp16;        \
+    vType data = {0};                                                          \
+  };
+
+__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
+    sycl::ext::oneapi::experimental::matrix::use::a, 16, 4, 4)
+__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
+    sycl::ext::oneapi::experimental::matrix::use::b, 4, 16, 4)
+
+#endif
+
+#undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
+
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(TYPE, M, N, SIZE)                 \
   template <>                                                                  \
   struct joint_matrix_hip<                                                     \
@@ -56,7 +81,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 4, 16)
     vType wi_marray = {0};                                                     \
   };
 
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 16)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC
 
@@ -145,21 +170,40 @@ template <
         (Layout == sycl::ext::oneapi::experimental::matrix::layout::row_major ||
          Layout ==
              sycl::ext::oneapi::experimental::matrix::layout::col_major) &&
-        (NumRows == 16 || NumRows == 4) && (NumCols == 16 || NumCols == 4) &&
-        std::is_same_v<S, float>>>
+        (NumRows == 16 || NumRows == 4) && (NumCols == 16 || NumCols == 4)>>
 void load_multiplicand_hip(
     joint_matrix_hip<S, Use, NumRows, NumCols, Layout> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
   auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
              sg.get_local_linear_id();
 
-  if constexpr (Layout ==
-                sycl::ext::oneapi::experimental::matrix::layout::row_major) {
-    res.data = src[idx];
-    } else if constexpr (Layout ==
-                          sycl::ext::oneapi::experimental::matrix::layout::col_major) {
+  if constexpr (std::is_same_v<S, float>) {
+    if constexpr (Layout ==
+                  sycl::ext::oneapi::experimental::matrix::layout::row_major) {
+      res.data = src[idx];
+    } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                       layout::col_major) {
       res.data = src[(idx % NumRows) * NumCols + idx / NumRows];
     }
+  } else if constexpr (std::is_same_v<S, half>) {
+    auto thread_x = idx % 16;
+    auto thread_y = idx / 16;
+
+    if constexpr (Layout ==
+                  sycl::ext::oneapi::experimental::matrix::layout::row_major) {
+      for (int i = 0; i < 4; ++i) {
+        const int r_idx = thread_x * 4 + i + thread_y * 64;
+        res.data[i] = src[r_idx];
+      }
+    } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                       layout::col_major) {
+      for (int i = 0; i < 4; ++i) {
+        const int c_idx =
+            thread_x + 4 * i + thread_y * 64 + (thread_x / 4) * 12;
+        res.data[i] = src[c_idx];
+      }
+    }
+  }
 }
 
 template <typename Group,
@@ -170,21 +214,24 @@ void store_layoutT(
     joint_matrix_hip<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
-    multi_ptr<T, Space, IsDecorated> dst, size_t stride, Group& sg) {
-    auto local_id = sg.get_local_id();
-    if constexpr (NumRows == 16 && NumCols == 16) {
-      if constexpr (std::is_same_v<T, float>) {
-        auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
-                   sg.get_local_linear_id();
-        auto thread_x = idx / stride;
-        auto thread_y = idx % stride;
+    multi_ptr<T, Space, IsDecorated> dst, size_t stride, Group &sg) {
+  if constexpr (NumRows == 16 && NumCols == 16) {
+    if constexpr (std::is_same_v<T, float>) {
+      auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
+                 sg.get_local_linear_id();
+      auto thread_x = idx % stride;
+      auto thread_y = idx / stride;
+
+      for (int b = 0; b < 4; ++b) {
         for (int i = 0; i < 4; ++i) {
-          dst[thread_y + i * stride + thread_x * 4 * stride] = src.wi_marray[i];
+          const int d_idx = thread_x * 16 + i + thread_y * 4 + b * 16;
+          dst[d_idx] = src.wi_marray[i + b * 4];
         }
       }
-    } else {
-      static_assert(false && "Invalid dadimenstions!");
     }
+  } else {
+    static_assert(false && "Invalid dadimenstions!");
+  }
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -270,8 +317,10 @@ void joint_matrix_mad_hip(
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
   if constexpr (M == 16 && N == 16 && K == 4) {
-    if constexpr (std::is_same_v<Tc, float>) {
+    if constexpr (std::is_same_v<Tm, float>) {
       D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x4f32(A.data, B.data, C.wi_marray, 0, 0, 0);
+    } else if constexpr (std::is_same_v<Tm, sycl::half>) {
+      D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x4f16(A.data, B.data, C.wi_marray, 0, 0, 0);
     }
   } else {
     assert(false && "Invalid dimensions!");
