@@ -67,6 +67,10 @@ __SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
     sycl::ext::oneapi::experimental::matrix::use::a, 16, 4, 4)
 __SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
     sycl::ext::oneapi::experimental::matrix::use::b, 4, 16, 4)
+__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
+    sycl::ext::oneapi::experimental::matrix::use::a, 32, 8, 4)
+__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
+    sycl::ext::oneapi::experimental::matrix::use::b, 8, 32, 4)
 
 #endif
 
@@ -82,6 +86,7 @@ __SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 32, 32, 16)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC
 
@@ -168,42 +173,63 @@ template <
     access::address_space Space, access::decorated IsDecorated,
     typename = typename std::enable_if_t<
         (Layout == sycl::ext::oneapi::experimental::matrix::layout::row_major ||
-         Layout ==
-             sycl::ext::oneapi::experimental::matrix::layout::col_major) &&
-        (NumRows == 16 || NumRows == 4) && (NumCols == 16 || NumCols == 4)>>
+         Layout == sycl::ext::oneapi::experimental::matrix::layout::col_major)>>
 void load_multiplicand_hip(
     joint_matrix_hip<S, Use, NumRows, NumCols, Layout> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
   auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
              sg.get_local_linear_id();
+  if constexpr (NumRows == 16 || NumRows == 4)
+    &&(NumCols == 16 || NumCols == 4) {
+      if constexpr (std::is_same_v<S, float>) {
+        if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                    layout::row_major) {
+          res.data = src[idx];
+        } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                           layout::col_major) {
+          res.data = src[(idx % NumRows) * NumCols + idx / NumRows];
+        }
+      } else if constexpr (std::is_same_v<S, half>) {
+        auto thread_x = idx % 16;
+        auto thread_y = idx / 16;
 
-  if constexpr (std::is_same_v<S, float>) {
-    if constexpr (Layout ==
-                  sycl::ext::oneapi::experimental::matrix::layout::row_major) {
-      res.data = src[idx];
-    } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                       layout::col_major) {
-      res.data = src[(idx % NumRows) * NumCols + idx / NumRows];
+        if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                    layout::row_major) {
+          for (int i = 0; i < 4; ++i) {
+            const int r_idx = thread_x * 4 + i + thread_y * 64;
+            res.data[i] = src[r_idx];
+          }
+        } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                           layout::col_major) {
+          for (int i = 0; i < 4; ++i) {
+            const int c_idx =
+                thread_x + 4 * i + thread_y * 64 + (thread_x / 4) * 12;
+            res.data[i] = src[c_idx];
+          }
+        }
+      }
     }
-  } else if constexpr (std::is_same_v<S, half>) {
-    auto thread_x = idx % 16;
-    auto thread_y = idx / 16;
+  else if constexpr (NumRows == 32 || NumRows == 8)
+    &&(NumCols == 32 || NumCols == 8) {
+      if constexpr (std::is_same_v<S, half>) {
+        auto thread_x = idx % 16;
+        auto thread_y = idx / 16;
 
-    if constexpr (Layout ==
-                  sycl::ext::oneapi::experimental::matrix::layout::row_major) {
-      for (int i = 0; i < 4; ++i) {
-        const int r_idx = thread_x * 4 + i + thread_y * 64;
-        res.data[i] = src[r_idx];
-      }
-    } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                       layout::col_major) {
-      for (int i = 0; i < 4; ++i) {
-        const int c_idx =
-            thread_x + 4 * i + thread_y * 64 + (thread_x / 4) * 12;
-        res.data[i] = src[c_idx];
+        if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                    layout::row_major) {
+          for (int i = 0; i < 4; ++i) {
+            const int r_idx = thread_x * 8 + i + thread_y * 4;
+            res.data[i] = src[r_idx];
+          }
+        } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                           layout::col_major) {
+          for (int i = 0; i < 4; ++i) {
+            const int c_idx = thread_x + i * 32 + thread_y * 4 * 32;
+            res.data[i] = src[c_idx];
+          }
+        }
       }
     }
-  }
 }
 
 template <typename Group,
@@ -229,10 +255,25 @@ void store_layoutT(
         }
       }
     }
-  } else {
-    static_assert(false && "Invalid dadimenstions!");
+  } else if constexpr (NumRows == 32 && NumCols == 32) {
+    if constexpr (std::is_same_v<T, float>) {
+      auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
+                 sg.get_local_linear_id();
+      auto thread_x = idx % stride;
+      auto thread_y = idx / stride;
+      const int LDD = 32;
+
+      for (int j = 0; j < 4; ++j) {
+        for (int i = 0; i < 4; ++i) {
+          const int d_idx =
+              thread_x + i * LDD + thread_y * 4 * LDD + j * 2 * 4 * LDD;
+          dst[d_idx] = src.wi_marray[i + 4 * j];
+        }
+      }
+    } else {
+      static_assert(false && "Invalid dadimenstions!");
+    }
   }
-}
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, access::decorated IsDecorated>
@@ -321,6 +362,11 @@ void joint_matrix_mad_hip(
       D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x4f32(A.data, B.data, C.wi_marray, 0, 0, 0);
     } else if constexpr (std::is_same_v<Tm, sycl::half>) {
       D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x4f16(A.data, B.data, C.wi_marray, 0, 0, 0);
+    }
+  } else if constexpr (M == 32 && N == 32 && K == 8)
+    if constexpr (std::is_same_v<Tm, sycl::half>) {
+      D.wi_marray = __builtin_amdgcn_mfma_f32_32x32x8f16(A.data, B.data,
+                                                         C.wi_marray, 0, 0, 0);
     }
   } else {
     assert(false && "Invalid dimensions!");
