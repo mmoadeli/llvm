@@ -71,6 +71,10 @@ __SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
     sycl::ext::oneapi::experimental::matrix::use::a, 32, 8, 4)
 __SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
     sycl::ext::oneapi::experimental::matrix::use::b, 8, 32, 4)
+__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
+    sycl::ext::oneapi::experimental::matrix::use::a, 32, 4, 4)
+__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
+    sycl::ext::oneapi::experimental::matrix::use::b, 4, 32, 4)
 
 #endif
 
@@ -212,8 +216,8 @@ void load_multiplicand_hip(
   else if constexpr (NumRows == 32 || NumRows == 8)
     &&(NumCols == 32 || NumCols == 8) {
       if constexpr (std::is_same_v<S, half>) {
-        auto thread_x = idx % 16;
-        auto thread_y = idx / 16;
+        auto thread_x = idx % 32;
+        auto thread_y = idx / 32;
 
         if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                     layout::row_major) {
@@ -225,6 +229,32 @@ void load_multiplicand_hip(
                                            layout::col_major) {
           for (int i = 0; i < 4; ++i) {
             const int c_idx = thread_x + i * 32 + thread_y * 4 * 32;
+            res.data[i] = src[c_idx];
+          }
+        }
+      }
+    }
+  else if constexpr (NumRows == 32 || NumRows == 4)
+    &&(NumCols == 32 || NumCols == 4) {
+      if constexpr (std::is_same_v<S, half>) {
+        auto thread_x = idx % 32;
+        auto thread_y = idx / 32;
+
+        constexpr int LDA = 4;
+        constexpr int LDB = 32;
+        constexpr int batchStrideA = M * LDA;
+        constexpr int batchStrideB = K * LDB;
+
+        if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                    layout::row_major) {
+          for (int i = 0; i < 4; ++i) {
+            const int r_idx = thread_x * LDA + i + thread_y * batchStrideA;
+            res.data[i] = src[r_idx];
+          }
+        } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                           layout::col_major) {
+          for (int i = 0; i < 4; ++i) {
+            const int c_idx = thread_x + i * LDB + thread_y * batchStrideB;
             res.data[i] = src[c_idx];
           }
         }
@@ -368,6 +398,12 @@ void joint_matrix_mad_hip(
       D.wi_marray = __builtin_amdgcn_mfma_f32_32x32x8f16(A.data, B.data,
                                                          C.wi_marray, 0, 0, 0);
     }
+}
+else if constexpr (M == 32 && N == 32 &&
+                   K == 4) if constexpr (std::is_same_v<Tm, sycl::half>) {
+  D.wi_marray = __builtin_amdgcn_mfma_f32_32x32x4f16(A.data, B.data,
+                                                     C.wi_marray, 0, 0, 0);
+}
   } else {
     assert(false && "Invalid dimensions!");
   }
