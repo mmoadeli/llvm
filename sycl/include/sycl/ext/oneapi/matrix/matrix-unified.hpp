@@ -7,9 +7,9 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
-#include "matrix-intel.hpp"
+//#include "matrix-intel.hpp"
 #include "utils.hpp"
-#include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
+//#include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
 #include <sycl/ext/oneapi/matrix/matrix-hip.hpp>
 namespace sycl {
 inline namespace _V1 {
@@ -18,8 +18,7 @@ namespace oneapi {
 namespace experimental {
 namespace matrix {
 
-template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout>
+template <typename Group, typename T, use Use, size_t Rows, size_t Cols, size_t K, layout Layout>
 struct joint_matrix {
 
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -27,7 +26,7 @@ struct joint_matrix {
   sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols, Layout>
       cuda_impl;
 #elif defined(__HIP_PLATFORM_AMD__)
-  sycl::ext::oneapi::detail::joint_matrix_hip<T, Use, Rows, Cols, Layout>
+  sycl::ext::oneapi::detail::joint_matrix_hip<T, Use, Rows, Cols, K, Layout>
     hip_impl;
 #elif defined(__SPIR__)
   __spv::__spirv_JointMatrixINTEL<
@@ -65,7 +64,7 @@ struct joint_matrix {
 #endif
 };
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__HIP_PLATFORM_AMD__)
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout>
 class wi_data {
@@ -106,10 +105,10 @@ template <typename type, size_t size> class wi_data {
   marray<type, size> &data;
   wi_data(marray<type, size> &wi_marray) : data(wi_marray){};
   template <typename Grp, typename Type, use UseJm, size_t NumRows,
-            size_t NumCols, layout LayoutJm>
+            size_t NumCols, size_t K, layout LayoutJm>
   friend decltype(auto)
   get_wi_data(Grp,
-              joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
+              joint_matrix<Grp, Type, UseJm, NumRows, NumCols, K, LayoutJm> &);
 
 public:
   size_t length() { return data.size(); };
@@ -119,7 +118,7 @@ public:
 #endif
 
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout>
+          size_t Ks, layout Layout>
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
 __SYCL2020_DEPRECATED("get_wi_data() is deprecated for CUDA backend. Please "
@@ -131,7 +130,7 @@ __attribute__((unavailable(
 #endif
 #endif
 inline __SYCL_ALWAYS_INLINE decltype(auto)
-    get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
+    get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Ks, Layout> &jm) {
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   return wi_data(jm);
@@ -149,9 +148,9 @@ inline __SYCL_ALWAYS_INLINE decltype(auto)
 }
 
 template <typename Group, typename T, use Use, size_t M, size_t N,
-          layout Layout, typename F>
+          size_t K, layout Layout, typename F>
 inline __SYCL_ALWAYS_INLINE void
-joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
+joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, K, Layout> &jm,
                    F &&lambda) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
@@ -160,15 +159,15 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
     lambda(jm.cuda_impl.wi_marray[i]);
   }
 #else // NVPTX
-  using storage_element_type =
-      typename oneapi::detail::jm_type_interpretation_helper_trait<
-          T>::storage_element_type;
-  auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, jm);
-  for (int i = 0; i < wi_data_c.length(); i++) {
-    storage_element_type element = wi_data_c[i];
-    lambda(element);
-    wi_data_c[i] = element;
-  }
+  // using storage_element_type =
+  //     typename oneapi::detail::jm_type_interpretation_helper_trait<
+  //         T>::storage_element_type;
+  // auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, jm);
+  // for (int i = 0; i < wi_data_c.length(); i++) {
+  //   storage_element_type element = wi_data_c[i];
+  //   lambda(element);
+  //   wi_data_c[i] = element;
+  // }
 #endif
 #else
   std::ignore = sg;
@@ -180,11 +179,11 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
   return;
 }
 
-template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
+template <typename Group, typename T, size_t NumRows, size_t NumCols, size_t K, use Use,
           layout Layout, typename T2>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_fill(Group sg,
-                  joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
+                  joint_matrix<Group, T, Use, NumRows, NumCols, K, Layout> &res,
                   const T2 &v) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
@@ -193,14 +192,14 @@ joint_matrix_fill(Group sg,
 #elif defined(__HIP_PLATFORM_AMD__)
   res.hip_impl.data = v;
 #else
-  using storage_element_type =
-      typename oneapi::detail::jm_type_interpretation_helper_trait<
-          T>::storage_element_type;
-  res.spvm =
-      __spirv_CompositeConstruct<storage_element_type, T, NumRows, NumCols,
-                                 spv_matrix_use_traits<Use>::value,
-                                 spv_matrix_layout_traits<Layout>::value>(
-          static_cast<storage_element_type>(v));
+  // using storage_element_type =
+  //     typename oneapi::detail::jm_type_interpretation_helper_trait<
+  //         T>::storage_element_type;
+  // res.spvm =
+  //     __spirv_CompositeConstruct<storage_element_type, T, NumRows, NumCols,
+  //                                spv_matrix_use_traits<Use>::value,
+  //                                spv_matrix_layout_traits<Layout>::value>(
+  //         static_cast<storage_element_type>(v));
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -212,13 +211,13 @@ joint_matrix_fill(Group sg,
 }
 
 template <
-    typename Group, typename S, typename T, size_t NumRows, size_t NumCols,
+    typename Group, typename S, typename T, size_t NumRows, size_t NumCols, size_t K,
     access::address_space Space, access::decorated IsDecorated,
     std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value, bool> =
         true>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     Group sg,
-    joint_matrix<Group, S, use::accumulator, NumRows, NumCols,
+    joint_matrix<Group, S, use::accumulator, NumRows, NumCols, K,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
@@ -277,7 +276,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 
 template <
     typename Group, typename S, typename T, use Use, size_t NumRows,
-    size_t NumCols, matrix::layout Layout, access::address_space Space,
+    size_t NumCols, size_t K, matrix::layout Layout, access::address_space Space,
     access::decorated IsDecorated,
     std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
                          (std::is_same<S, precision::tf32>::value &&
@@ -285,7 +284,7 @@ template <
                      bool> = true>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_load(Group sg,
-                  joint_matrix<Group, S, Use, NumRows, NumCols, Layout> &res,
+                  joint_matrix<Group, S, Use, NumRows, NumCols, K, Layout> &res,
                   multi_ptr<T, Space, IsDecorated> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
@@ -296,7 +295,7 @@ joint_matrix_load(Group sg,
                                                     Layout, Space>(
       res.cuda_impl, src, stride);
 #elif defined(__HIP_PLATFORM_AMD__)
-  sycl::ext::oneapi::detail::load_multiplicand_hip<Group, S, T, NumRows, NumCols, Use,
+  sycl::ext::oneapi::detail::load_multiplicand_hip<Group, S, T, NumRows, NumCols, K, Use,
                                                   Layout, Space>(
       res.hip_impl, src, stride, sg);
 #else
@@ -320,11 +319,11 @@ joint_matrix_load(Group sg,
 }
 
 template <typename Group, typename T, size_t NumRows,
-          size_t NumCols, access::address_space Space,
+          size_t NumCols, size_t K, access::address_space Space,
           access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     Group sg,
-    joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
+    joint_matrix<Group, T, use::accumulator, NumRows, NumCols, K,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
@@ -337,7 +336,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
 #elif defined(__HIP_PLATFORM_AMD__)
-  sycl::ext::oneapi::detail::joint_matrix_store_hip<Group, T, NumRows, NumCols,
+  sycl::ext::oneapi::detail::joint_matrix_store_hip<Group, T, NumRows, NumCols, K,
                                                     Space>(src.hip_impl, dst,
                                                            stride, Layout, sg);
 #else
@@ -383,14 +382,36 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
+template <typename Group, typename T, size_t NumRows,
+          size_t NumCols, size_t K, access::address_space Space,
+          access::decorated IsDecorated>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
+    Group sg,
+    joint_matrix<Group, T, use::a, NumRows, NumCols, K,
+                 sycl::ext::oneapi::experimental::matrix::layout::col_major> &src,
+    multi_ptr<T, Space, IsDecorated> dst, size_t stride,
+    sycl::ext::oneapi::experimental::matrix::layout Layout) {
+#if defined(__SYCL_DEVICE_ONLY__)
+  static_assert(Space != access::address_space::private_space,
+                "Joint Matrix doesn't support store to private memory!");
+
+#if defined(__HIP_PLATFORM_AMD__)
+  sycl::ext::oneapi::detail::joint_matrix_store_hip<Group, T, NumRows, NumCols, K,
+                                                    Space>(src.hip_impl, dst,
+                                                           stride, Layout, sg);
+#endif
+#endif
+}
+
+
 template <typename Group, typename Ta, typename Tb, typename Tc, std::size_t M,
-          std::size_t K, std::size_t N, layout LayoutA, layout LayoutB, layout LayoutC>
+          std::size_t N, std::size_t K, layout LayoutA, layout LayoutB, layout LayoutC>
 inline __SYCL_ALWAYS_INLINE
-    joint_matrix<Group, Tc, use::accumulator, M, N, LayoutC>
+    joint_matrix<Group, Tc, use::accumulator, M, N, K, LayoutC>
     joint_matrix_mad(
-        Group sg, joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
-        joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B,
-        joint_matrix<Group, Tc, use::accumulator, M, N, LayoutC>
+        Group sg, joint_matrix<Group, Ta, use::a, M, N, K, LayoutA> &A,
+        joint_matrix<Group, Tb, use::b, M, N, K, LayoutB> &B,
+        joint_matrix<Group, Tc, use::accumulator, M, N, K, LayoutC>
             &C) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
@@ -409,10 +430,10 @@ inline __SYCL_ALWAYS_INLINE
   }
 #elif defined(__HIP_PLATFORM_AMD__)
   if constexpr (std::is_same<Ta, Tb>::value) {
-    joint_matrix<Group, Tc, use::accumulator, M, N,
+    joint_matrix<Group, Tc, use::accumulator, M, N, K,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic>
         D;
-    sycl::ext::oneapi::detail::joint_matrix_mad_hip<Ta, Tc, M, K, N, LayoutA,
+    sycl::ext::oneapi::detail::joint_matrix_mad_hip<Ta, Tc, M, N, K, LayoutA,
                                                      LayoutB>(
         D.hip_impl, A.hip_impl, B.hip_impl, C.hip_impl);
     return D;
