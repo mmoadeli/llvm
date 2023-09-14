@@ -203,125 +203,110 @@ void load_multiplicand_hip(
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
   auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
              sg.get_local_linear_id();
-  if constexpr (NumRows == 16 && NumCols == 16 && K == 4) {
-      if constexpr (std::is_same_v<S, float>) {
-        if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                    layout::row_major) {
-          res.data = src[idx];
-        } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                           layout::col_major) {
-          res.data = src[(idx % NumRows) * NumCols + idx / NumRows];
-        }
-      } else if constexpr (std::is_same_v<S, __fp16>) {
-        auto thread_x = idx % 16;
-        auto thread_y = idx / 16;
 
-        if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                    layout::row_major) {
-          for (int i = 0; i < 4; ++i) {
-            const int r_idx = thread_x * 4 + i + thread_y * 64;
-            res.data[i] = src[r_idx];
-          }
-        } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                           layout::col_major) {
-          for (int i = 0; i < 4; ++i) {
-            const int c_idx =
-                thread_x + 4 * i + thread_y * 64 + (thread_x / 4) * 12;
-            res.data[i] = src[c_idx];
-          }
+  if constexpr (std::is_same_v<S, __fp16>) {
+    if constexpr (NumRows == 16 && NumCols == 16 && K == 4) {    
+      auto thread_x = idx % 16;
+      auto thread_y = idx / 16;
+
+      if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                  layout::row_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int r_idx = thread_x * 4 + i + thread_y * 64;
+          res.data[i] = src[r_idx];
+        }
+      } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                          layout::col_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int c_idx =
+              thread_x + 4 * i + thread_y * 64 + (thread_x / 4) * 12;
+          res.data[i] = src[c_idx];
         }
       }
     } else if constexpr (NumRows == 16 && NumRows == 16 && K == 16) {
-      if constexpr (std::is_same_v<S, __fp16>) {
-        constexpr int LDA = 16;
-        constexpr int LDB = 16;
+      constexpr int LDA = 16;
+      constexpr int LDB = 16;
 
-        auto thread_x = idx % 16;
-        auto thread_y = idx / 16;
+      auto thread_x = idx % 16;
+      auto thread_y = idx / 16;
 
-        if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                    layout::row_major) {
-          for (int i = 0; i < 4; ++i) {
-            const int r_idx = thread_x * LDA + i + thread_y * 4;
-            res.data[i] = src[r_idx];
-          }
-        } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                           layout::col_major) {
-          for (int i = 0; i < 4; ++i) {
-            const int c_idx = thread_x + i * LDB + thread_y * LDB * 4;
-            res.data[i] = src[c_idx];
-          }
+      if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                  layout::row_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int r_idx = thread_x * LDA + i + thread_y * 4;
+          res.data[i] = src[r_idx];
+        }
+      } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                          layout::col_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int c_idx = thread_x + i * LDB + thread_y * LDB * 4;
+          res.data[i] = src[c_idx];
         }
       }
     } else if constexpr (NumRows == 32 && NumRows == 32 && K == 8) {
-      if constexpr (std::is_same_v<S, __fp16>) {
-        auto thread_x = idx % 32;
-        auto thread_y = idx / 32;
+      auto thread_x = idx % 32;
+      auto thread_y = idx / 32;
 
-        if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                    layout::row_major) {
-          for (int i = 0; i < 4; ++i) {
-            const int r_idx = thread_x * 8 + i + thread_y * 4;
-            res.data[i] = src[r_idx];
-          }
-        } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                           layout::col_major) {
-          for (int i = 0; i < 4; ++i) {
-            const int c_idx = thread_x + i * 32 + thread_y * 4 * 32;
-            res.data[i] = src[c_idx];
-          }
+      if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                  layout::row_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int r_idx = thread_x * 8 + i + thread_y * 4;
+          res.data[i] = src[r_idx];
+        }
+      } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                          layout::col_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int c_idx = thread_x + i * 32 + thread_y * 4 * 32;
+          res.data[i] = src[c_idx];
         }
       }
     } else if constexpr (NumRows == 32 && NumRows == 32 && K == 4) {
-      if constexpr (std::is_same_v<S, __fp16>) {
-        auto thread_x = idx % 32;
-        auto thread_y = idx / 32;
+      auto thread_x = idx % 32;
+      auto thread_y = idx / 32;
 
-        constexpr int LDA = 4;
-        constexpr int LDB = 32;
-        constexpr int batchStrideA = 32 * LDA;
-        constexpr int batchStrideB = 4 * LDB;
+      constexpr int LDA = 4;
+      constexpr int LDB = 32;
+      constexpr int batchStrideA = 32 * LDA;
+      constexpr int batchStrideB = 4 * LDB;
 
-        if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                    layout::row_major) {
-          for (int i = 0; i < 4; ++i) {
-            const int r_idx = thread_x * LDA + i + thread_y * batchStrideA;
-            res.data[i] = src[r_idx];
-          }
-        } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                           layout::col_major) {
-          for (int i = 0; i < 4; ++i) {
-            const int c_idx = thread_x + i * LDB + thread_y * batchStrideB;
-            res.data[i] = src[c_idx];
-          }
+      if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                  layout::row_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int r_idx = thread_x * LDA + i + thread_y * batchStrideA;
+          res.data[i] = src[r_idx];
+        }
+      } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                          layout::col_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int c_idx = thread_x + i * LDB + thread_y * batchStrideB;
+          res.data[i] = src[c_idx];
         }
       }
     } else if constexpr (NumRows == 4 && NumRows == 4 && K == 4) {
-      if constexpr (std::is_same_v<S, __fp16>) {
-        auto thread_x = idx % 4;
-        auto thread_y = idx / 4;
-        constexpr int LDA = 4;
-        constexpr int LDB = 4;
-        constexpr int batchStrideA = 4 * LDA;
-        constexpr int batchStrideB = 4 * LDB;
+      auto thread_x = idx % 4;
+      auto thread_y = idx / 4;
+      constexpr int LDA = 4;
+      constexpr int LDB = 4;
+      constexpr int batchStrideA = 4 * LDA;
+      constexpr int batchStrideB = 4 * LDB;
 
-        if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                    layout::row_major) {
-          for (int i = 0; i < 4; ++i) {
-            const int r_idx = thread_x * LDA + i + thread_y * batchStrideA;
-            res.data[i] = src[r_idx];
-          }
-        } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                           layout::col_major) {
-          for (int i = 0; i < 4; ++i) {
-            const int c_idx = thread_x + i * LDB + thread_y * batchStrideB;
-            res.data[i] = src[c_idx];
-          }
+      if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                  layout::row_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int r_idx = thread_x * LDA + i + thread_y * batchStrideA;
+          res.data[i] = src[r_idx];
+        }
+      } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                          layout::col_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int c_idx = thread_x + i * LDB + thread_y * batchStrideB;
+          res.data[i] = src[c_idx];
         }
       }
     } else {
       static_assert(false && "Invalid load dimensions!");
     }
+  }
 }
 
 template <typename Group,
