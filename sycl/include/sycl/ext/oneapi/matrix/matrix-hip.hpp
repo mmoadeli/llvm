@@ -32,6 +32,21 @@ struct joint_matrix_hip;
 
 #if defined(__SYCL_DEVICE_ONLY__)
 
+template<typename T>
+struct to_hip_type {
+  using type = T;
+};
+
+template<>
+struct to_hip_type<bfloat16> {
+  using type = __bf16;
+};
+
+template<>
+struct to_hip_type<half> {
+  using type = __fp16;
+};
+
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(TYPE, USE, M, N, K)                   \
   template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \
   struct joint_matrix_hip<                                                     \
@@ -49,32 +64,34 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 16, 16, 4)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
-#define __SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(USE, M, N, K)                    \
+#define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(TYPE, USE, M, N, K)          \
   template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \
   struct joint_matrix_hip<                                                     \
-      sycl::half, USE, M, N, K, Layout,                                        \
+      TYPE, sycl::ext::oneapi::experimental::matrix::use::USE, M, N,           \
+      K, Layout,                                                               \
       typename std::enable_if_t<                                               \
           Layout ==                                                            \
               sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
           Layout ==                                                            \
               sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
     using vType =                                                              \
-        __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16;           \
+        __attribute__((__vector_size__(4 * sizeof(typename to_hip_type<TYPE>::type)))) __bf16; \
     vType data;                                                                \
   };
 
-__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
-    sycl::ext::oneapi::experimental::matrix::use::a, 16, 16, 4)
-__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
-   sycl::ext::oneapi::experimental::matrix::use::b, 16, 16, 4)
-__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
-    sycl::ext::oneapi::experimental::matrix::use::a, 32, 32, 4)
-__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
-    sycl::ext::oneapi::experimental::matrix::use::b, 32, 32, 4)
-__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
-    sycl::ext::oneapi::experimental::matrix::use::a, 32, 32, 8)
-__SYCL_JOINT_MATRIX_HALF_OVERLOAD_ARR(
-    sycl::ext::oneapi::experimental::matrix::use::b, 32, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 32, 32, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 32, 32, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 32, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 32, 32, 8)
+
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 32, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 32, 32, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 32, 32, 8)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
@@ -505,28 +522,20 @@ void joint_matrix_mad_hip(
     joint_matrix_hip<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N, K,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
-  if constexpr (M == 16 && N == 16 && K == 4) {
-    if constexpr (std::is_same_v<Tm, float>) {
-      D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x4f32(A.data, B.data, C.wi_marray, 0, 0, 0);
-    } else if constexpr (std::is_same_v<Tm, sycl::half>) {
-      D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x4f16(A.data, B.data, C.wi_marray, 0, 0, 0);
-    }
-  } else if constexpr (M == 16 && N == 16 && K == 16) {
-    if constexpr (std::is_same_v<Tm, sycl::half>) {
-      __builtin_amdgcn_mfma_f32_16x16x16f16(A.data, B.data, C.wi_marray, 0, 0, 0);
-    }
-  } else if constexpr (M == 32 && N == 32 && K == 8) {
-    if constexpr (std::is_same_v<Tm, sycl::half>) {
+  if constexpr (std::is_same_v<Tm, sycl::half>) {
+    if constexpr (M == 16 && N == 16 && K == 4) {
+      D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x4f16(A.data, B.data,
+                                                         C.wi_marray, 0, 0, 0);
+    } else if constexpr (M == 16 && N == 16 && K == 16) {
+      D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x16f16(A.data, B.data,
+                                                          C.wi_marray, 0, 0, 0);
+    } else if constexpr (M == 32 && N == 32 && K == 8) {
       D.wi_marray = __builtin_amdgcn_mfma_f32_32x32x8f16(A.data, B.data,
                                                          C.wi_marray, 0, 0, 0);
-    }
-  } else if constexpr (M == 32 && N == 32 && K == 4) {
-    if constexpr (std::is_same_v<Tm, sycl::half>) {
+    } else if constexpr (M == 32 && N == 32 && K == 4) {
       D.wi_marray = __builtin_amdgcn_mfma_f32_32x32x4f16(A.data, B.data,
                                                          C.wi_marray, 0, 0, 0);
-    }
-  } else if constexpr (M == 4 && N == 4 && K == 4) {
-    if constexpr (std::is_same_v<Tm, sycl::half>) {
+    } else if constexpr (M == 4 && N == 4 && K == 4) {
       D.wi_marray = __builtin_amdgcn_mfma_f32_4x4x4f16(A.data, B.data,
                                                        C.wi_marray, 0, 0, 0);
     }
