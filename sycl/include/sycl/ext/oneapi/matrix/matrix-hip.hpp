@@ -223,7 +223,7 @@ void load_multiplicand_hip(
           res.data[i] = src[c_idx];
         }
       }
-    } else if constexpr (NumRows == 16 && NumRows == 16 && K == 16) {
+    } else if constexpr (NumRows == 16 && NumCols == 16 && K == 16) {
       constexpr int LDA = 16;
       constexpr int LDB = 16;
 
@@ -243,7 +243,7 @@ void load_multiplicand_hip(
           res.data[i] = src[c_idx];
         }
       }
-    } else if constexpr (NumRows == 32 && NumRows == 32 && K == 8) {
+    } else if constexpr (NumRows == 32 && NumCols == 32 && K == 8) {
       auto thread_x = idx % 32;
       auto thread_y = idx / 32;
 
@@ -260,7 +260,7 @@ void load_multiplicand_hip(
           res.data[i] = src[c_idx];
         }
       }
-    } else if constexpr (NumRows == 32 && NumRows == 32 && K == 4) {
+    } else if constexpr (NumRows == 32 && NumCols == 32 && K == 4) {
       auto thread_x = idx % 32;
       auto thread_y = idx / 32;
 
@@ -322,8 +322,8 @@ void store_layoutT(
     auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
                 sg.get_local_linear_id();
     if constexpr (NumRows == 16 && NumCols == 16 && K == 4) {
-      auto thread_x = idx % stride;
-      auto thread_y = idx / stride;
+      auto thread_x = idx % 16;
+      auto thread_y = idx / 16;
 
       constexpr int LDD = 16;
       constexpr int batchStrideD = NumCols * NumRows;
