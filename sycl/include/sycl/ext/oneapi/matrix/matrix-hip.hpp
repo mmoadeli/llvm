@@ -208,24 +208,24 @@ void load_multiplicand_hip(
     if constexpr (NumRows == 16 && NumCols == 16 && K == 4) {    
       auto thread_x = idx % 16;
       auto thread_y = idx / 16;
+      constexpr int batchStrideA = NumRows * K;
+      constexpr int batchStrideB = K * NumCols;
 
       if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                   layout::row_major) {
         for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x * 4 + i + thread_y * 64;
+          const int r_idx = thread_x * K + i + thread_y * batchStrideA;
           res.data[i] = src[r_idx];
         }
       } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                           layout::col_major) {
         for (int i = 0; i < 4; ++i) {
           const int c_idx =
-              thread_x + 4 * i + thread_y * 64 + (thread_x / 4) * 12;
+              thread_x + NumCols * i + thread_y * batchStrideB;
           res.data[i] = src[c_idx];
         }
       }
     } else if constexpr (NumRows == 16 && NumCols == 16 && K == 16) {
-      constexpr int LDA = 16;
-      constexpr int LDB = 16;
 
       auto thread_x = idx % 16;
       auto thread_y = idx / 16;
@@ -233,13 +233,13 @@ void load_multiplicand_hip(
       if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                   layout::row_major) {
         for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x * LDA + i + thread_y * 4;
+          const int r_idx = thread_x * K + i + thread_y * 4;
           res.data[i] = src[r_idx];
         }
       } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                           layout::col_major) {
         for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x + i * LDB + thread_y * LDB * 4;
+          const int c_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
           res.data[i] = src[c_idx];
         }
       }
@@ -256,7 +256,7 @@ void load_multiplicand_hip(
       } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                           layout::col_major) {
         for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x + i * 32 + thread_y * 4 * 32;
+          const int c_idx = thread_x + i * NumCols + thread_y * 4 * NumCols;
           res.data[i] = src[c_idx];
         }
       }
@@ -264,42 +264,38 @@ void load_multiplicand_hip(
       auto thread_x = idx % 32;
       auto thread_y = idx / 32;
 
-      constexpr int LDA = 4;
-      constexpr int LDB = 32;
-      constexpr int batchStrideA = 32 * LDA;
-      constexpr int batchStrideB = 4 * LDB;
+      constexpr int batchStrideA = NumRows * K;
+      constexpr int batchStrideB = K * NumCols;
 
       if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                   layout::row_major) {
         for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x * LDA + i + thread_y * batchStrideA;
+          const int r_idx = thread_x * K + i + thread_y * batchStrideA;
           res.data[i] = src[r_idx];
         }
       } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                           layout::col_major) {
         for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x + i * LDB + thread_y * batchStrideB;
+          const int c_idx = thread_x + i * NumCols + thread_y * batchStrideB;
           res.data[i] = src[c_idx];
         }
       }
     } else if constexpr (NumRows == 4 && NumCols == 4 && K == 4) {
       auto thread_x = idx % 4;
       auto thread_y = idx / 4;
-      constexpr int LDA = K;
-      constexpr int LDB = NumCols;
-      constexpr int batchStrideA = 4 * LDA;
-      constexpr int batchStrideB = 4 * LDB;
+      constexpr int batchStrideA = 4 * K;
+      constexpr int batchStrideB = 4 * NumCols;
 
       if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                   layout::row_major) {
         for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x * LDA + i + thread_y * batchStrideA;
+          const int r_idx = thread_x * K + i + thread_y * batchStrideA;
           res.data[i] = src[r_idx];
         }
       } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                           layout::col_major) {
         for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x + i * LDB + thread_y * batchStrideB;
+          const int c_idx = thread_x + i * NumCols + thread_y * batchStrideB;
           res.data[i] = src[c_idx];
         }
       }
