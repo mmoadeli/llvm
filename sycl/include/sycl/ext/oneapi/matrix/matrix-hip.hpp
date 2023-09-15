@@ -263,7 +263,6 @@ void load_multiplicand_hip(
     } else if constexpr (NumRows == 32 && NumCols == 32 && K == 4) {
       auto thread_x = idx % 32;
       auto thread_y = idx / 32;
-
       constexpr int batchStrideA = NumRows * K;
       constexpr int batchStrideB = K * NumCols;
 
@@ -320,60 +319,52 @@ void store_layoutT(
     if constexpr (NumRows == 16 && NumCols == 16 && K == 4) {
       auto thread_x = idx % 16;
       auto thread_y = idx / 16;
-
-      constexpr int LDD = 16;
       constexpr int batchStrideD = NumCols * NumRows;
 
       for (int b = 0; b < 4; ++b) {
         for (int i = 0; i < 4; ++i) {
-          const int d_idx = thread_x + i * LDD + thread_y * 4 * LDD + b * batchStrideD;
+          const int d_idx = thread_x + i * NumCols + thread_y * 4 * NumCols + b * batchStrideD;
           dst[d_idx] = src.wi_marray[i + b * 4];
         }
       }
     } else if constexpr (NumRows == 32 && NumCols == 32 && K == 8) {
       auto thread_x = idx % 32;
       auto thread_y = idx / 32;
-      const int LDD = 32;
 
       for (int j = 0; j < 4; ++j) {
         for (int i = 0; i < 4; ++i) {
           const int d_idx =
-              thread_x + i * LDD + thread_y * 4 * LDD + j * 2 * 4 * LDD;
+              thread_x + i * NumCols + thread_y * 4 * NumCols + j * 2 * 4 * NumCols;
           dst[d_idx] = src.wi_marray[i + 4 * j];
         }
       }
     } else if constexpr (NumRows == 32 && NumCols == 32 && K == 4) {
       auto thread_x = idx % 32;
       auto thread_y = idx / 32;
-      constexpr int LDD = 32;
 
       for (int j = 0; j < 4; ++j) {
         for (int i = 0; i < 4; ++i) {
           const int d_idx =
-              thread_x + i * LDD + thread_y * 4 * LDD + j * 2 * 4 * LDD;
+              thread_x + i * NumCols + thread_y * 4 * NumCols + j * 2 * 4 * NumCols;
           dst[d_idx] = src.wi_marray[i + 4 * j];
         }
       }
     } else if constexpr (NumRows == 16 && NumCols == 16 && K == 16) {
       auto thread_x = idx % 16;
       auto thread_y = idx / 16;
-
-      constexpr int LDD = NumCols;
-      constexpr int batchStrideD = NumRows * LDD;
+      constexpr int batchStrideD = NumRows * NumCols;
 
       for (int i = 0; i < 4; ++i) {
-        const int d_idx = thread_x + i * LDD + thread_y * batchStrideD;
+        const int d_idx = thread_x + i * NumCols + thread_y * batchStrideD;
         dst[d_idx] = src.wi_marray[i];
       }
     } else if constexpr (NumRows == 4 && NumCols == 4 && K == 4) {
       auto thread_x = idx / 16;
       auto thread_y = idx % 16;
-
-      constexpr int LDD = NumCols;
-      constexpr int batchStrideD = NumRows * LDD;
+      constexpr int batchStrideD = NumRows * NumCols;
 
       for (int i = 0; i < 4; ++i) {
-        const int d_idx = thread_x + i * LDD + thread_y * 4 * LDD;
+        const int d_idx = thread_x + i * NumCols + thread_y * 4 * NumCols;
         dst[d_idx] = src.wi_marray[i];
       }
     } else {
