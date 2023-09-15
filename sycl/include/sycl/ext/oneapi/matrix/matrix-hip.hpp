@@ -47,7 +47,6 @@ struct to_hip_type<half> {
   using type = __fp16;
 };
 
-
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(TYPE, USE, M, N, K)          \
@@ -189,9 +188,17 @@ void load_multiplicand_hip(
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
   auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
              sg.get_local_linear_id();
+  
+  constexpr bool fp16_bf16_matching_dimensions =
+      (std::is_same_v<S, __fp16> || std::is_same_v<S, __bf16>) &&
+      ((NumRows == 16 && NumCols == 16 && K == 4) ||
+      (NumRows == 16 && NumCols == 16 && K == 16) ||
+      (NumRows == 32 && NumCols == 32 && K == 4) ||
+      (NumRows == 32 && NumCols == 32 && K == 8) ||
+      (NumRows == 4 && NumCols == 4 && K == 4));
 
-  if constexpr (std::is_same_v<S, __fp16>) {
-    if constexpr (NumRows == 16 && NumCols == 16 && K == 4) {    
+  if constexpr (fp16_bf16_matching_dimensions) {
+    if constexpr (NumRows == 16 && NumCols == 16 && K == 4) {
       auto thread_x = idx % 16;
       auto thread_y = idx / 16;
       constexpr int batchStrideA = NumRows * K;
@@ -457,6 +464,23 @@ void joint_matrix_mad_hip(
     } else if constexpr (M == 4 && N == 4 && K == 4) {
       D.wi_marray = __builtin_amdgcn_mfma_f32_4x4x4f16(A.data, B.data,
                                                        C.wi_marray, 0, 0, 0);
+    }
+  } else if constexpr (std::is_same_v<Tm, bfloat16>) {
+    if constexpr (M == 16 && N == 16 && K == 4) {
+      D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x4bf16_1k(A.data, B.data,
+                                                            C.wi_marray, 0, 0, 0);
+    } else if constexpr (M == 16 && N == 16 && K == 16) {
+      D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(A.data, B.data,
+                                                             C.wi_marray, 0, 0, 0);
+    } else if constexpr (M == 32 && N == 32 && K == 8) {
+      D.wi_marray = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(A.data, B.data,
+                                                             C.wi_marray, 0, 0, 0);
+    } else if constexpr (M == 32 && N == 32 && K == 4) {
+      D.wi_marray = __builtin_amdgcn_mfma_f32_32x32x4bf16_1k(A.data, B.data,
+                                                             C.wi_marray, 0, 0, 0);
+    } else if constexpr (M == 4 && N == 4 && K == 4) {
+      D.wi_marray = __builtin_amdgcn_mfma_f32_4x4x4bf16_1k(A.data, B.data,
+                                                           C.wi_marray, 0, 0, 0);
     }
   } else {
     assert(false && "Invalid dimensions!");
