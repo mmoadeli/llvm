@@ -47,20 +47,6 @@ struct to_hip_type<half> {
   using type = __fp16;
 };
 
-#define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(TYPE, USE, M, N, K)                   \
-  template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \
-  struct joint_matrix_hip<                                                     \
-      TYPE, sycl::ext::oneapi::experimental::matrix::use::USE, M, N, K, Layout,   \
-      typename std::enable_if_t<                                               \
-          Layout ==                                                            \
-              sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
-          Layout ==                                                            \
-              sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
-    TYPE data;                                                                 \
-  };
-
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 16, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 16, 16, 4)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
