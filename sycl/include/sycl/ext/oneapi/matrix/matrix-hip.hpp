@@ -282,11 +282,11 @@ void load_multiplicand_hip(
           res.data[i] = src[c_idx];
         }
       }
-    } else if constexpr (NumRows == 4 && NumRows == 4 && K == 4) {
+    } else if constexpr (NumRows == 4 && NumCols == 4 && K == 4) {
       auto thread_x = idx % 4;
       auto thread_y = idx / 4;
-      constexpr int LDA = 4;
-      constexpr int LDB = 4;
+      constexpr int LDA = K;
+      constexpr int LDB = NumCols;
       constexpr int batchStrideA = 4 * LDA;
       constexpr int batchStrideB = 4 * LDB;
 
