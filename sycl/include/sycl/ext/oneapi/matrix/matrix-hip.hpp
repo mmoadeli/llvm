@@ -49,7 +49,7 @@ struct to_hip_type<half> {
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
-#define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(TYPE, USE, M, N, K)          \
+#define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(TYPE, USE, M, N, K, SIZE)          \
   template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \
   struct joint_matrix_hip<                                                     \
       TYPE, sycl::ext::oneapi::experimental::matrix::use::USE, M, N,           \
@@ -60,23 +60,28 @@ struct to_hip_type<half> {
           Layout ==                                                            \
               sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
     using vType =                                                              \
-        __attribute__((__vector_size__(4 * sizeof(typename to_hip_type<TYPE>::type)))) __bf16; \
+        __attribute__((__vector_size__(SIZE * sizeof(typename to_hip_type<TYPE>::type)))) typename to_hip_type<TYPE>::type; \
     vType data;                                                                \
   };
 
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 16, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 32, 32, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 32, 32, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 32, 32, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 32, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 16, 16, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 32, 32, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 32, 32, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 32, 32, 8, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 32, 32, 8, 4)
 
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 16, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 32, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 32, 32, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 32, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 32, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 16, 16, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 16, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 32, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 32, 32, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 32, 8, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 32, 32, 8, 4)
+
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, a, 4, 4, 4, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 4, 4, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, a, 16, 16, 4, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 16, 16, 4, 1)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
@@ -94,6 +99,8 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 4, 16)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 32, 32, 4, 32)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 32, 32, 8, 16)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 4, 4, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(double, 4, 4, 4, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(double, 16, 16, 4, 4)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC
 
@@ -294,6 +301,36 @@ void load_multiplicand_hip(
     } else {
       static_assert(false && "Invalid load dimensions!");
     }
+  } else if constexpr (std::is_same_v<S, double>) {
+    if constexpr (NumRows == 4 && NumCols == 4 && K == 4) {
+      auto thread_x = idx / 4;
+      auto thread_y = idx % 4;
+      auto thread_xw = thread_x / 4;
+      auto thread_xz = thread_x % 4;
+
+      if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                  layout::row_major) {
+        const int r_idx = thread_xw * K * NumRows + thread_xz + K * thread_y;
+        res.data[0] = src[r_idx];        
+      } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                          layout::col_major) {
+        const int c_idx = thread_xz * NumCols +  thread_xw * K * NumCols  + thread_y;
+        res.data[0] = src[c_idx];
+      }
+    } else if constexpr (NumRows == 16 && NumCols == 16 && K == 4) {
+      auto thread_x = idx / 4;
+      auto thread_y = idx % 4;
+
+      if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                  layout::row_major) {
+        const int r_idx = K * thread_x + thread_y;
+        res.data[0] = src[r_idx];        
+      } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
+                                          layout::col_major) {
+        const int c_idx = thread_x + NumCols * thread_y;
+        res.data[0] = src[c_idx];
+      }
+    }
   }
 }
 
@@ -306,9 +343,9 @@ void store_layoutT(
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, K, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride, Group &sg) {
+  auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
+              sg.get_local_linear_id();
   if constexpr (std::is_same_v<T, float>) {
-    auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
-                sg.get_local_linear_id();
     if constexpr (NumRows == 16 && NumCols == 16 && K == 4) {
       auto thread_x = idx % 16;
       auto thread_y = idx / 16;
@@ -362,6 +399,25 @@ void store_layoutT(
       }
     } else {
       static_assert(false && "Invalid dadimenstions!");
+    }
+  } else if constexpr (std::is_same_v<T, double>) {
+    if constexpr (NumRows == 16 && NumCols == 16 && K == 4) {
+      auto thread_x = idx % 16;
+      auto thread_y = idx / 16;
+      constexpr int LDD = NumRows * NumCols;
+    
+      for (int i = 0; i < 4; ++i) {
+        const int d_idx = thread_x + i * LDD + LDD * thread_y * 4;
+        dst[d_idx] = src.wi_marray[i];
+      }
+    } else if constexpr (NumRows == 4 && NumCols == 4 && K == 4) {
+      auto thread_x = idx / 4;
+      auto thread_y = idx % 4;
+      auto thread_xw = thread_x / 4;
+      auto thread_xz = thread_x % 4;
+
+      const int d_idx = thread_xw * K * NumRows + thread_xz + K * thread_y;
+      dst[d_idx] = src.wi_marray[0];
     }
   }
 }
@@ -481,6 +537,14 @@ void joint_matrix_mad_hip(
     } else if constexpr (M == 4 && N == 4 && K == 4) {
       D.wi_marray = __builtin_amdgcn_mfma_f32_4x4x4bf16_1k(A.data, B.data,
                                                            C.wi_marray, 0, 0, 0);
+    }
+  } else if constexpr (std::is_same_v<Tm, double>) {
+    if constexpr (M == 16 && N == 16 && K == 4) {
+      D.wi_marray = __builtin_amdgcn_mfma_f64_16x16x4f64(A.data, B.data,
+                                                         C.wi_marray, 0, 0, 0);
+    } else if constexpr (M == 4 && N == 4 && K == 16) {
+      D.wi_marray = __builtin_amdgcn_mfma_f64_4x4x4f64(A.data, B.data,
+                                                       C.wi_marray, 0, 0, 0);
     }
   } else {
     assert(false && "Invalid dimensions!");
