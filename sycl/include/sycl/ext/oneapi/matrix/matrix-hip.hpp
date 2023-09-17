@@ -49,7 +49,7 @@ struct to_hip_type<half> {
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
-#define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(TYPE, USE, M, N, K, SIZE)          \
+#define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(TYPE, USE, M, N, K, SIZE)             \
   template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \
   struct joint_matrix_hip<                                                     \
       TYPE, sycl::ext::oneapi::experimental::matrix::use::USE, M, N,           \
@@ -66,6 +66,8 @@ struct to_hip_type<half> {
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 16, 16, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 16, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 32, 32, 4, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 32, 32, 4, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 32, 32, 8, 4)
@@ -73,6 +75,8 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 32, 32, 8, 4)
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 16, 16, 4, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 16, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 16, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 32, 4, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 32, 32, 4, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 32, 8, 4)
@@ -96,6 +100,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 16, 16, 4, 1)
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 1, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 4, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 32, 32, 4, 32)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 32, 32, 8, 16)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 4, 4, 4, 4)
