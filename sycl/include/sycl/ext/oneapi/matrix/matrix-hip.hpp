@@ -118,7 +118,6 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 16, 4)
     vType wi_marray = {0};                                                     \
   };
 
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 1, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 4, 16)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 32, 32, 2, 32)
