@@ -71,8 +71,8 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 8, 32, 4)
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 32, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 32, 32, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 8, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 8, 32, 4)
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, a, 16, 4, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 16, 1)
@@ -239,24 +239,7 @@ void load_multiplicand_hip(
       static_assert(false && "Invalid load dimensions!");
     }
   } else if constexpr (std::is_same_v<S, double>) {
-    if constexpr (NumRows == 4 && NumCols == 4) {
-      auto thread_x = idx / 4;
-      auto thread_y = idx % 4;
-      auto thread_xw = thread_x / 4;
-      auto thread_xz = thread_x % 4;
-
-      constexpr int K = 4;
-
-      if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                  layout::row_major) {
-        const int r_idx = thread_xw * K * NumRows + thread_xz + K * thread_y;
-        res.data[0] = src[r_idx];        
-      } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                          layout::col_major) {
-        const int c_idx = thread_xz * NumCols +  thread_xw * K * NumCols  + thread_y;
-        res.data[0] = src[c_idx];
-      }
-    } else if constexpr (NumRows == 16 && NumCols == 16 /* && K == 4 */) {
+    if constexpr (NumRows == 16 && NumCols == 16 /* && K == 4 */) {
       auto thread_x = idx / 4;
       auto thread_y = idx % 4;
       constexpr int K = 4;
@@ -322,8 +305,8 @@ void store_layoutT(
     }
   } else if constexpr (std::is_same_v<T, double>) {
     if constexpr (NumRows == 16 && NumCols == 16) {
-      auto thread_x = idx % 16;
-      auto thread_y = idx / 16;
+      auto thread_x = idx / 4;
+      auto thread_y = idx % 4;
       constexpr int LDD = NumCols;
       constexpr int K = 4;
 
