@@ -64,8 +64,8 @@ struct to_hip_type<half> {
     vType data;                                                                \
   };
 
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 4, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 4, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 32, 8, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 8, 32, 4)
 
@@ -261,23 +261,21 @@ void store_layoutT(
 
   if constexpr (std::is_same_v<T, double>) {
     if constexpr (NumRows == 16 && NumCols == 16) {
-      auto thread_x = idx / stride;
-      auto thread_y = idx % stride;
+      auto thread_x = idx / 4;
+      auto thread_y = idx % 4;
       for (int i = 0; i < 4; ++i) {
-        dst[thread_y + i * stride + thread_x * 4 * stride] = src.wi_marray[i];
+        dst[thread_x + i * NumCols + thread_y * 4 * NumCols] = src.wi_marray[i];
       }
     }
   } else if constexpr (std::is_same_v<T, float>) {
-    if constexpr (NumRows == 16 && NumCols == 16 /* && K == 4 */) {
+    if constexpr (NumRows == 16 && NumCols == 16 /* && K == 16 */) {
       auto thread_x = idx % 16;
       auto thread_y = idx / 16;
-      constexpr int batchStrideD = NumCols * NumRows;
 
-      for (int b = 0; b < 4; ++b) {
-        for (int i = 0; i < 4; ++i) {
-          const int d_idx = thread_x + i * NumCols + thread_y * 4 * NumCols + b * batchStrideD;
-          dst[d_idx] = src.wi_marray[i + b * 4];
-        }
+
+      for (int i = 0; i < 4; ++i) {
+        const int d_idx = thread_x + i * NumCols + thread_y * 4 * NumCols;
+        dst[d_idx] = src.wi_marray[i];
       }
     } else if constexpr (NumRows == 32 && NumCols == 32 /* && K == 8 */) {
       auto thread_x = idx % 32;
