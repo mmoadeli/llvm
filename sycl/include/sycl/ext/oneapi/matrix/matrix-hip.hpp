@@ -190,16 +190,24 @@ template <
 void load_multiplicand_hip(
     joint_matrix_hip<S, Use, NumRows, NumCols, Layout> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
-  auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
-             sg.get_local_linear_id();
 
   constexpr bool fp16_bf16_matching_dimensions =
-      (std::is_same_v<S, __fp16> || std::is_same_v<S, __bf16>)&&(
-          (NumRows == 16 && NumCols == 16) || (NumRows == 32 && NumCols == 32));
+      (std::is_same_v<S, __fp16> || std::is_same_v<S, __bf16>) &&
+        ((NumRows == 16 && NumCols == 16) || (NumRows == 32 && NumCols == 32));
 
-  if constexpr (fp16_bf16_matching_dimensions) {
+  const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
+                sg.get_local_linear_id();
+
+  if constexpr (std::is_same_v<S, double>) {
+    if constexpr (Layout ==
+                  sycl::ext::oneapi::experimental::matrix::layout::row_major) {
+      res.data[0] = src[idx];
+    } else if constexpr (Layout ==
+                          sycl::ext::oneapi::experimental::matrix::layout::col_major) {
+      res.data[0] = src[(idx % NumRows) * NumCols + idx / NumRows];
+    }
+  } else if constexpr (fp16_bf16_matching_dimensions) {
     if constexpr (NumRows == 16 && NumCols == 16) {
-
       auto thread_x = idx % 16;
       auto thread_y = idx / 16;
       constexpr int K = 16;
@@ -235,24 +243,6 @@ void load_multiplicand_hip(
           res.data[i] = src[c_idx];
         }
       }
-    } else {
-      static_assert(false && "Invalid load dimensions!");
-    }
-  } else if constexpr (std::is_same_v<S, double>) {
-    if constexpr (NumRows == 16 && NumCols == 16 /* && K == 4 */) {
-      auto thread_x = idx / 4;
-      auto thread_y = idx % 4;
-      constexpr int K = 4;
-
-      if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                  layout::row_major) {
-        const int r_idx = K * thread_x + thread_y;
-        res.data[0] = src[r_idx];        
-      } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                          layout::col_major) {
-        const int c_idx = thread_x + NumCols * thread_y;
-        res.data[0] = src[c_idx];
-      }
     }
   }
 }
@@ -265,10 +255,19 @@ void store_layoutT(
     joint_matrix_hip<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
-    multi_ptr<T, Space, IsDecorated> dst, size_t stride, Group &sg) {
-  auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
-              sg.get_local_linear_id();
-  if constexpr (std::is_same_v<T, float>) {
+    multi_ptr<T, Space, IsDecorated> dst, size_t stride, Group& sg) {
+  const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
+                   sg.get_local_linear_id();
+
+  if constexpr (std::is_same_v<T, double>) {
+    if constexpr (NumRows == 16 && NumCols == 16) {
+      auto thread_x = idx / stride;
+      auto thread_y = idx % stride;
+      for (int i = 0; i < 4; ++i) {
+        dst[thread_y + i * stride + thread_x * 4 * stride] = src.wi_marray[i];
+      }
+    }
+  } else if constexpr (std::is_same_v<T, float>) {
     if constexpr (NumRows == 16 && NumCols == 16 /* && K == 4 */) {
       auto thread_x = idx % 16;
       auto thread_y = idx / 16;
@@ -291,30 +290,9 @@ void store_layoutT(
           dst[d_idx] = src.wi_marray[i + 4 * j];
         }
       }
-    } else if constexpr (NumRows == 16 && NumCols == 16 /* && K == 16 */) {
-      auto thread_x = idx % 16;
-      auto thread_y = idx / 16;
-      constexpr int batchStrideD = NumRows * NumCols;
-
-      for (int i = 0; i < 4; ++i) {
-        const int d_idx = thread_x + i * NumCols + thread_y * batchStrideD;
-        dst[d_idx] = src.wi_marray[i];
-      }
-    } else {
-      static_assert(false && "Invalid dadimenstions!");
     }
-  } else if constexpr (std::is_same_v<T, double>) {
-    if constexpr (NumRows == 16 && NumCols == 16) {
-      auto thread_x = idx / 4;
-      auto thread_y = idx % 4;
-      constexpr int LDD = NumCols;
-      constexpr int K = 4;
-
-      for (int i = 0; i < 4; ++i) {
-        const int d_idx = thread_x + i * LDD + LDD * thread_y * K;
-        dst[d_idx] = src.wi_marray[i];
-      }
-    }
+  } else {
+    static_assert(false && "Invalid dadimenstions!");
   }
 }
 
@@ -375,7 +353,7 @@ constexpr int get_layout_pair_id<
 }
 
 template <
-    typename Tm, typename Tc, std::size_t M, std::size_t N, std::size_t K,
+    typename Tm, typename Tc, std::size_t M, std::size_t K, std::size_t N,
     sycl::ext::oneapi::experimental::matrix::layout LayoutA,
     sycl::ext::oneapi::experimental::matrix::layout LayoutB,
     std::enable_if_t<
