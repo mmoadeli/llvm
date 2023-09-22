@@ -64,8 +64,8 @@ struct to_hip_type<half> {
     vType data;                                                                \
   };
 
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 4, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 4, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 32, 8, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 8, 32, 4)
 
@@ -192,7 +192,7 @@ void load_multiplicand_hip(
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
 
   constexpr bool fp16_bf16_matching_dimensions =
-      (std::is_same_v<S, __fp16> || std::is_same_v<S, __bf16>) &&
+      (std::is_same_v<S, half> || std::is_same_v<S, bfloat16>) &&
         ((NumRows == 16 && NumCols == 16) || (NumRows == 32 && NumCols == 32));
 
   const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
@@ -208,20 +208,20 @@ void load_multiplicand_hip(
     }
   } else if constexpr (fp16_bf16_matching_dimensions) {
     if constexpr (NumRows == 16 && NumCols == 16) {
-      auto thread_x = idx % 16;
-      auto thread_y = idx / 16;
+      auto thread_x = idx / 4;
+      auto thread_y = idx % 4;
       constexpr int K = 16;
 
       if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                   layout::row_major) {
         for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x * K + i + thread_y * 4;
+          const int r_idx =  thread_x * K + i + thread_y * 4;
           res.data[i] = src[r_idx];
         }
       } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                           layout::col_major) {
         for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
+          const int c_idx =  thread_x + i * K + thread_y * K * 4;
           res.data[i] = src[c_idx];
         }
       }
@@ -268,13 +268,13 @@ void store_layoutT(
       }
     }
   } else if constexpr (std::is_same_v<T, float>) {
-    if constexpr (NumRows == 16 && NumCols == 16 /* && K == 16 */) {
-      auto thread_x = idx % 16;
-      auto thread_y = idx / 16;
-
+    if constexpr (NumRows == 16 && NumCols == 16) {
+      auto thread_x = idx / 4;
+      auto thread_y = idx % 4;
+      constexpr int K = 16;
 
       for (int i = 0; i < 4; ++i) {
-        const int d_idx = thread_x + i * NumCols + thread_y * 4 * NumCols;
+        const int d_idx = thread_x + i * K + thread_y * 4 * K;
         dst[d_idx] = src.wi_marray[i];
       }
     } else if constexpr (NumRows == 32 && NumCols == 32 /* && K == 8 */) {
