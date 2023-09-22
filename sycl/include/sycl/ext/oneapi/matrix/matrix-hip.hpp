@@ -204,7 +204,7 @@ void load_multiplicand_hip(
       res.data[0] = src[idx];
     } else if constexpr (Layout ==
                           sycl::ext::oneapi::experimental::matrix::layout::col_major) {
-      res.data[0] = src[(idx % NumRows) * NumCols + idx / NumRows];
+      res.data[0] = src[(idx % NumRows) * 4 + idx / NumRows];
     }
   } else if constexpr (fp16_bf16_matching_dimensions) {
     if constexpr (NumRows == 16 && NumCols == 16) {
@@ -269,8 +269,8 @@ void store_layoutT(
     }
   } else if constexpr (std::is_same_v<T, float>) {
     if constexpr (NumRows == 16 && NumCols == 16) {
-      auto thread_x = idx / 4;
-      auto thread_y = idx % 4;
+      auto thread_x = idx / 16;
+      auto thread_y = idx % 16;
       constexpr int K = 16;
 
       for (int i = 0; i < 4; ++i) {
