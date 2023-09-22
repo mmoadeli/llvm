@@ -59,10 +59,10 @@ template <> struct to_hip_type<int8_t> {
       TYPE, matrix_use::USE, M, N, Layout,                                     \
       typename std::enable_if_t<Layout == matrix_layout::row_major ||          \
                                 Layout == matrix_layout::col_major>> {         \
-    using vType = __attribute__((                                              \
+    using ext_array_t = __attribute__((                                              \
         __vector_size__(SIZE * sizeof(typename to_hip_type<TYPE>::type))))     \
     typename to_hip_type<TYPE>::type;                                          \
-    vType data;                                                                \
+    ext_array_t data;                                                                \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4)
@@ -89,8 +89,8 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 1)
   template <>                                                                  \
   struct joint_matrix_hip<TYPE, matrix_use::accumulator, M, N,                 \
                           matrix_layout::dynamic> {                            \
-    using vType = __attribute__((__vector_size__(SIZE * sizeof(TYPE)))) TYPE;  \
-    vType data = {0};                                                          \
+    using ext_array_t = __attribute__((__vector_size__(SIZE * sizeof(TYPE)))) TYPE;  \
+    ext_array_t data = {0};                                                          \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 4)
@@ -278,7 +278,7 @@ void store_layoutT(joint_matrix_hip<T, matrix_use::accumulator, NumRows,
       for (int j = 0; j < 4; ++j) {
         for (int i = 0; i < 4; ++i) {
           const int d_idx =
-              thread_x + i * NumCols + thread_y * 4 * NumCols + j * 2 * 4 * NumCols;
+              thread_x + i * NumCols + thread_y * 4 * NumCols + j * 8 * NumCols;
           dst[d_idx] = src.data[i + 4 * j];
         }
       }
