@@ -261,8 +261,8 @@ void store_layoutT(
 
   if constexpr (std::is_same_v<T, double>) {
     if constexpr (NumRows == 16 && NumCols == 16) {
-      auto thread_x = idx / 4;
-      auto thread_y = idx % 4;
+      auto thread_x = idx % 16;
+      auto thread_y = idx / 16;
       for (int i = 0; i < 4; ++i) {
         dst[thread_x + i * NumCols + thread_y * 4 * NumCols] = src.wi_marray[i];
       }
