@@ -264,7 +264,7 @@ void store_layoutT(
       auto thread_x = idx % 16;
       auto thread_y = idx / 16;
       for (int i = 0; i < 4; ++i) {
-        dst[thread_x + i * NumCols + thread_y * 4 * NumCols] = src.wi_marray[i];
+        dst[thread_x + i * 4 * NumCols + thread_y * NumCols] = src.wi_marray[i];
       }
     }
   } else if constexpr (std::is_same_v<T, float>) {
