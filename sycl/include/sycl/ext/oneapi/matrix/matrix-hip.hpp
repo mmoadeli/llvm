@@ -21,13 +21,13 @@ namespace matrix {
 } // namespace matrix
 } // namespace experimental
 
+using matrix_layout = sycl::ext::oneapi::experimental::matrix::layout;
+using matrix_use = sycl::ext::oneapi::experimental::matrix::use;
+
 namespace detail {
 
-template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
-          size_t Rows, size_t Cols,
-          sycl::ext::oneapi::experimental::matrix::layout Layout =
-              sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-          typename Cond = void>
+template <typename T, matrix_use Use, size_t Rows, size_t Cols,
+          matrix_layout Layout = matrix_layout::dynamic, typename Cond = void>
 struct joint_matrix_hip;
 
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -47,17 +47,18 @@ struct to_hip_type<half> {
   using type = __fp16;
 };
 
+template <> struct to_hip_type<int8_t> {
+  using type = int32_t;
+};
+
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(TYPE, USE, M, N, SIZE)                \
-  template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \
+  template <matrix_layout Layout>                                              \
   struct joint_matrix_hip<                                                     \
-      TYPE, sycl::ext::oneapi::experimental::matrix::use::USE, M, N, Layout,   \
-      typename std::enable_if_t<                                               \
-          Layout ==                                                            \
-              sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
-          Layout ==                                                            \
-              sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
+      TYPE, matrix_use::USE, M, N, Layout,                                     \
+      typename std::enable_if_t<Layout == matrix_layout::row_major ||          \
+                                Layout == matrix_layout::col_major>> {         \
     using vType = __attribute__((                                              \
         __vector_size__(SIZE * sizeof(typename to_hip_type<TYPE>::type))))     \
     typename to_hip_type<TYPE>::type;                                          \
@@ -77,20 +78,19 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 8, 32, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, a, 16, 4, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 16, 1)
 
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 32, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 32, 32, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 8, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 8, 32, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 16, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 1)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(TYPE, M, N, SIZE)                 \
   template <>                                                                  \
-  struct joint_matrix_hip<                                                     \
-      TYPE, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,   \
-      sycl::ext::oneapi::experimental::matrix::layout::dynamic> {              \
+  struct joint_matrix_hip<TYPE, matrix_use::accumulator, M, N,                 \
+                          matrix_layout::dynamic> {                            \
     using vType = __attribute__((__vector_size__(SIZE * sizeof(TYPE)))) TYPE;  \
-    vType wi_marray = {0};                                                     \
+    vType data = {0};                                                          \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 4)
@@ -105,52 +105,31 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(int32_t, 16, 16, 4)
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_PRECISION(PRECISION, USE, M, N, TYPE, \
                                                    SIZE)                       \
-  template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \
+  template <matrix_layout Layout>                                              \
   struct joint_matrix_hip<                                                     \
-      PRECISION, sycl::ext::oneapi::experimental::matrix::use::USE, M, N,      \
-      Layout,                                                                  \
-      typename std::enable_if_t<                                               \
-          Layout ==                                                            \
-              sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
-          Layout ==                                                            \
-              sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
+      PRECISION, matrix_use::USE, M, N, Layout,                                \
+      typename std::enable_if_t<Layout == matrix_layout::row_major ||          \
+                                Layout == matrix_layout::col_major>> {         \
     TYPE data;                                                                 \
   };
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR_PRECISION
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__HIP_PLATFORM_AMD__)
-template <sycl::ext::oneapi::experimental::matrix::layout Layout>
-constexpr int get_layout_id();
 
-template <>
-constexpr int
-get_layout_id<sycl::ext::oneapi::experimental::matrix::layout::row_major>() {
-  return 0;
-}
-
-template <>
-constexpr int
-get_layout_id<sycl::ext::oneapi::experimental::matrix::layout::col_major>() {
-  return 1;
-}
-
-template <sycl::ext::oneapi::experimental::matrix::layout Layout, typename S,
-          typename T, size_t NumRows, size_t NumCols,
-          access::address_space Space, access::decorated IsDecorated,
-          typename Group>
+template <matrix_layout Layout, typename S, typename T, size_t NumRows,
+          size_t NumCols, access::address_space Space,
+          access::decorated IsDecorated, typename Group>
 void load_accumulator_layoutT(
-    joint_matrix_hip<
-        S, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
-        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
+    joint_matrix_hip<S, matrix_use::accumulator, NumRows, NumCols,
+                     matrix_layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
-  auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
-             sg.get_local_linear_id();
-  if constexpr (Layout ==
-                sycl::ext::oneapi::experimental::matrix::layout::row_major) {
-    res.wi_marray = {0};
+  const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
+                   sg.get_local_linear_id();
+  if constexpr (Layout == matrix_layout::row_major) {
+    res.data = {0};
   } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
                                      layout::col_major) {
-    res.wi_marray = {0};
+    res.data = {0};
   }
 };
 
@@ -158,21 +137,16 @@ template <typename Group, typename S, typename T, size_t NumRows,
           size_t NumCols, access::address_space Space,
           access::decorated IsDecorated>
 void load_accumulator_hip(
-    joint_matrix_hip<
-        S, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
-        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride,
-    sycl::ext::oneapi::experimental::matrix::layout Layout, Group &sg) {
+    joint_matrix_hip<S, matrix_use::accumulator, NumRows, NumCols,
+                     matrix_layout::dynamic> &res,
+    multi_ptr<T, Space, IsDecorated> src, size_t stride, matrix_layout Layout,
+    Group &sg) {
   switch (Layout) {
-  case sycl::ext::oneapi::experimental::matrix::layout::row_major:
-    load_accumulator_layoutT<
-        sycl::ext::oneapi::experimental::matrix::layout::row_major>(res, src,
-                                                                    stride, sg);
+  case matrix_layout::row_major:
+    load_accumulator_layoutT<matrix_layout::row_major>(res, src, stride, sg);
     break;
-  case sycl::ext::oneapi::experimental::matrix::layout::col_major:
-    load_accumulator_layoutT<
-        sycl::ext::oneapi::experimental::matrix::layout::col_major>(res, src,
-                                                                    stride, sg);
+  case matrix_layout::col_major:
+    load_accumulator_layoutT<matrix_layout::col_major>(res, src, stride, sg);
     break;
   default:
     assert(false && "Invalid layout specified!");
@@ -181,111 +155,131 @@ void load_accumulator_hip(
 
 template <
     typename Group, typename S, typename T, size_t NumRows, size_t NumCols,
-    sycl::ext::oneapi::experimental::matrix::use Use,
-    sycl::ext::oneapi::experimental::matrix::layout Layout,
-    access::address_space Space, access::decorated IsDecorated,
-    typename = typename std::enable_if_t<
-        (Layout == sycl::ext::oneapi::experimental::matrix::layout::row_major ||
-         Layout == sycl::ext::oneapi::experimental::matrix::layout::col_major)>>
+    matrix_use Use, matrix_layout Layout, access::address_space Space,
+    access::decorated IsDecorated,
+    typename = typename std::enable_if_t<(Layout == matrix_layout::row_major ||
+                                          Layout == matrix_layout::col_major)>>
 void load_multiplicand_hip(
     joint_matrix_hip<S, Use, NumRows, NumCols, Layout> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
-
-  constexpr bool fp16_bf16_matching_dimensions =
-      (std::is_same_v<S, half> || std::is_same_v<S, bfloat16>) &&
-        ((NumRows == 16 && NumCols == 16) || (NumRows == 32 && NumCols == 32));
-
   const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
                 sg.get_local_linear_id();
 
   if constexpr (std::is_same_v<S, double>) {
-    if constexpr (Layout ==
-                  sycl::ext::oneapi::experimental::matrix::layout::row_major) {
+    if constexpr (Layout == matrix_layout::row_major) {
       res.data[0] = src[idx];
-    } else if constexpr (Layout ==
-                          sycl::ext::oneapi::experimental::matrix::layout::col_major) {
+    } else if constexpr (Layout == matrix_layout::col_major) {
       res.data[0] = src[(idx % NumRows) * 4 + idx / NumRows];
     }
-  } else if constexpr (fp16_bf16_matching_dimensions) {
+  } else if constexpr (std::is_same_v<S, half> || std::is_same_v<S, bfloat16>) {
     if constexpr (NumRows == 16 && NumCols == 16) {
-      auto thread_x = idx / 4;
-      auto thread_y = idx % 4;
+      const auto thread_x = idx % NumCols;
+      const auto thread_y = idx / NumCols;
       constexpr int K = 16;
 
-      if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                  layout::row_major) {
+      if constexpr (Layout == matrix_layout::row_major) {
         for (int i = 0; i < 4; ++i) {
           const int r_idx =  thread_x * K + i + thread_y * 4;
           res.data[i] = src[r_idx];
         }
-      } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                          layout::col_major) {
+      } else if constexpr (Layout == matrix_layout::col_major) {
         for (int i = 0; i < 4; ++i) {
-          const int c_idx =  thread_x + i * K + thread_y * K * 4;
+          const int c_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
           res.data[i] = src[c_idx];
         }
       }
     } else if constexpr (NumRows == 32 && NumCols == 32) {
-      auto thread_x = idx % 32;
-      auto thread_y = idx / 32;
+      const auto thread_x = idx % NumCols;
+      const auto thread_y = idx / NumCols;
       constexpr int K = 8;
 
-      if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                  layout::row_major) {
+      if constexpr (Layout == matrix_layout::row_major) {
         for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x * 8 + i + thread_y * 4;
+          const int r_idx = thread_x * K + i + thread_y * 4;
           res.data[i] = src[r_idx];
         }
-      } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                          layout::col_major) {
+      } else if constexpr (Layout == matrix_layout::col_major) {
         for (int i = 0; i < 4; ++i) {
           const int c_idx = thread_x + i * NumCols + thread_y * 4 * NumCols;
           res.data[i] = src[c_idx];
         }
       }
     }
+  } else if constexpr (std::is_same_v<S, int8_t>) {
+    if constexpr (NumRows == 16 && NumCols == 16) {
+      const auto thread_x = idx % NumCols;
+      const auto thread_y = idx / NumCols;
+      constexpr int K = 16;
+
+      if constexpr (Layout == matrix_layout::row_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int r_idx = thread_x * K + i + thread_y * 4;
+          res.data[0] |= (int32_t(src[r_idx]) << 8 * (3 - i));
+        }
+      } else if constexpr (Layout == matrix_layout::col_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int c_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
+          res.data[0] |= (int32_t(src[c_idx]) << 8 * (3 - i));
+        }
+      }
+    } else if constexpr (NumRows == 32 && NumCols == 32) {
+      const auto thread_x = idx % NumCols;
+      const auto thread_y = idx / NumCols;
+      constexpr int K = 8;
+
+      if constexpr (Layout == matrix_layout::row_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int r_idx = thread_x * K + i + thread_y * 4;
+          res.data[0] |= (int32_t(src[r_idx]) << 8 * (3 - i));
+        }
+      } else if constexpr (Layout == matrix_layout::col_major) {
+        for (int i = 0; i < 4; ++i) {
+          const int c_idx = thread_x + i * NumCols + thread_y * 4 * NumCols;
+          res.data[0] |= (int32_t(src[c_idx]) << 8 * (3 - i));
+        }
+      }
+    }
   }
 }
 
-template <typename Group,
-          sycl::ext::oneapi::experimental::matrix::layout Layout, typename T,
-          size_t NumRows, size_t NumCols, access::address_space Space,
+template <typename Group, matrix_layout Layout, typename T, size_t NumRows,
+          size_t NumCols, access::address_space Space,
           access::decorated IsDecorated>
-void store_layoutT(
-    joint_matrix_hip<
-        T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
-        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
-    multi_ptr<T, Space, IsDecorated> dst, size_t stride, Group& sg) {
+void store_layoutT(joint_matrix_hip<T, matrix_use::accumulator, NumRows,
+                                    NumCols, matrix_layout::dynamic> &src,
+                   multi_ptr<T, Space, IsDecorated> dst, size_t stride,
+                   Group &sg) {
   const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
                    sg.get_local_linear_id();
 
   if constexpr (std::is_same_v<T, double>) {
     if constexpr (NumRows == 16 && NumCols == 16) {
-      auto thread_x = idx % 16;
-      auto thread_y = idx / 16;
+      const auto thread_x = idx % NumCols;
+      const auto thread_y = idx / NumCols;
       for (int i = 0; i < 4; ++i) {
-        dst[thread_x + i * 4 * NumCols + thread_y * NumCols] = src.wi_marray[i];
+        dst[thread_x + i * 4 * NumCols + thread_y * NumCols] = src.data[i];
       }
     }
-  } else if constexpr (std::is_same_v<T, float>) {
+  } else if constexpr (std::is_same_v<T, float> || std::is_same_v<T, int32_t>) {
     if constexpr (NumRows == 16 && NumCols == 16) {
-      auto thread_x = idx / 16;
-      auto thread_y = idx % 16;
+      const auto thread_x = idx % NumCols;
+      const auto thread_y = idx / NumCols;
       constexpr int K = 16;
 
       for (int i = 0; i < 4; ++i) {
         const int d_idx = thread_x + i * K + thread_y * 4 * K;
-        dst[d_idx] = src.wi_marray[i];
+        dst[d_idx] = src.data[i];
       }
-    } else if constexpr (NumRows == 32 && NumCols == 32 /* && K == 8 */) {
-      auto thread_x = idx % 32;
-      auto thread_y = idx / 32;
+    } else if constexpr (NumRows == 32 && NumCols == 32) {
+      const auto thread_x = idx % NumCols;
+      const auto thread_y = idx / NumCols;
+      constexpr int K = 8;
 
       for (int j = 0; j < 4; ++j) {
         for (int i = 0; i < 4; ++i) {
           const int d_idx =
               thread_x + i * NumCols + thread_y * 4 * NumCols + j * 2 * 4 * NumCols;
-          dst[d_idx] = src.wi_marray[i + 4 * j];
+          dst[d_idx] = src.data[i + 4 * j];
         }
       }
     }
@@ -297,104 +291,63 @@ void store_layoutT(
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_store_hip(
-    joint_matrix_hip<
-        T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
-        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
-    multi_ptr<T, Space, IsDecorated> dst, size_t stride,
-    sycl::ext::oneapi::experimental::matrix::layout Layout, Group &sg) {
+    joint_matrix_hip<T, matrix_use::accumulator, NumRows, NumCols,
+                     matrix_layout::dynamic> &src,
+    multi_ptr<T, Space, IsDecorated> dst, size_t stride, matrix_layout Layout,
+    Group &sg) {
   switch (Layout) {
-  case sycl::ext::oneapi::experimental::matrix::layout::row_major:
-    store_layoutT<Group,
-                  sycl::ext::oneapi::experimental::matrix::layout::row_major>(
-        src, dst, stride, sg);
+  case matrix_layout::row_major:
+    store_layoutT<Group, matrix_layout::row_major>(src, dst, stride, sg);
     break;
-  case sycl::ext::oneapi::experimental::matrix::layout::col_major:
-    store_layoutT<Group,
-                  sycl::ext::oneapi::experimental::matrix::layout::col_major>(
-        src, dst, stride, sg);
+  case matrix_layout::col_major:
+    store_layoutT<Group, matrix_layout::col_major>(src, dst, stride, sg);
     break;
   default:
     assert(false && "Invalid layout specified!");
   }
 }
 
-template <sycl::ext::oneapi::experimental::matrix::layout LayoutA,
-          sycl::ext::oneapi::experimental::matrix::layout LayoutB>
-constexpr int get_layout_pair_id();
-
-template <>
-constexpr int get_layout_pair_id<
-    sycl::ext::oneapi::experimental::matrix::layout::row_major,
-    sycl::ext::oneapi::experimental::matrix::layout::row_major>() {
-  return 0;
-}
-
-template <>
-constexpr int get_layout_pair_id<
-    sycl::ext::oneapi::experimental::matrix::layout::row_major,
-    sycl::ext::oneapi::experimental::matrix::layout::col_major>() {
-  return 1;
-}
-
-template <>
-constexpr int get_layout_pair_id<
-    sycl::ext::oneapi::experimental::matrix::layout::col_major,
-    sycl::ext::oneapi::experimental::matrix::layout::row_major>() {
-  return 2;
-}
-
-template <>
-constexpr int get_layout_pair_id<
-    sycl::ext::oneapi::experimental::matrix::layout::col_major,
-    sycl::ext::oneapi::experimental::matrix::layout::col_major>() {
-  return 3;
-}
-
-template <
-    typename Tm, typename Tc, std::size_t M, std::size_t K, std::size_t N,
-    sycl::ext::oneapi::experimental::matrix::layout LayoutA,
-    sycl::ext::oneapi::experimental::matrix::layout LayoutB,
-    std::enable_if_t<
-        (LayoutA ==
-             sycl::ext::oneapi::experimental::matrix::layout::row_major ||
-         LayoutA ==
-             sycl::ext::oneapi::experimental::matrix::layout::col_major) &&
-            (LayoutB ==
-                 sycl::ext::oneapi::experimental::matrix::layout::row_major ||
-             LayoutB ==
-                 sycl::ext::oneapi::experimental::matrix::layout::col_major),
-        bool> = true>
-void joint_matrix_mad_hip(
-    joint_matrix_hip<
-        Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
-        sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
-    joint_matrix_hip<Tm, sycl::ext::oneapi::experimental::matrix::use::a, M, K,
-                     LayoutA> &A,
-    joint_matrix_hip<Tm, sycl::ext::oneapi::experimental::matrix::use::b, K, N,
-                     LayoutB> &B,
-    joint_matrix_hip<
-        Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
-        sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
+template <typename Tm, typename Tc, std::size_t M, std::size_t K, std::size_t N,
+          matrix_layout LayoutA, matrix_layout LayoutB,
+          std::enable_if_t<(LayoutA == matrix_layout::row_major ||
+                            LayoutA == matrix_layout::col_major) &&
+                               (LayoutB == matrix_layout::row_major ||
+                                LayoutB == matrix_layout::col_major),
+                           bool> = true>
+void joint_matrix_mad_hip(joint_matrix_hip<Tc, matrix_use::accumulator, M, N,
+                                           matrix_layout::dynamic> &D,
+                          joint_matrix_hip<Tm, matrix_use::a, M, K, LayoutA> &A,
+                          joint_matrix_hip<Tm, matrix_use::b, K, N, LayoutB> &B,
+                          joint_matrix_hip<Tc, matrix_use::accumulator, M, N,
+                                           matrix_layout::dynamic> &C) {
   if constexpr (std::is_same_v<Tm, sycl::half>) {
     if constexpr (M == 16 && N == 16) {
-      D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x16f16(A.data, B.data,
-                                                          C.wi_marray, 0, 0, 0);
+      D.data = __builtin_amdgcn_mfma_f32_16x16x16f16(A.data, B.data, C.data, 0,
+                                                     0, 0);
     } else if constexpr (M == 32 && N == 32) {
-      D.wi_marray = __builtin_amdgcn_mfma_f32_32x32x8f16(A.data, B.data,
-                                                         C.wi_marray, 0, 0, 0);
+      D.data =
+          __builtin_amdgcn_mfma_f32_32x32x8f16(A.data, B.data, C.data, 0, 0, 0);
     }
   } else if constexpr (std::is_same_v<Tm, bfloat16>) {
     if constexpr (M == 16 && N == 16) {
-      D.wi_marray = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(
-          A.data, B.data, C.wi_marray, 0, 0, 0);
+      D.data = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(A.data, B.data, C.data,
+                                                         0, 0, 0);
     } else if constexpr (M == 32 && N == 32 /* && K == 8 */) {
-      D.wi_marray = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
-          A.data, B.data, C.wi_marray, 0, 0, 0);
+      D.data = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(A.data, B.data, C.data,
+                                                        0, 0, 0);
     }
   } else if constexpr (std::is_same_v<Tm, double>) {
     if constexpr (M == 16 && N == 16) {
-      D.wi_marray = __builtin_amdgcn_mfma_f64_16x16x4f64(A.data[0], B.data[0],
-                                                         C.wi_marray, 0, 0, 0);
+      D.data = __builtin_amdgcn_mfma_f64_16x16x4f64(A.data[0], B.data[0],
+                                                    C.data, 0, 0, 0);
+    }
+  } else if constexpr (std::is_same_v<Tm, int8_t>) {
+    if constexpr (M == 16 && N == 16) {
+      D.data = __builtin_amdgcn_mfma_i32_16x16x16i8(A.data[0], B.data[0],
+                                                    C.data, 0, 0, 0);
+    } else if constexpr (M == 32 && N == 32) {
+      D.data = __builtin_amdgcn_mfma_i32_32x32x8i8(A.data[0], B.data[0], C.data,
+                                                   0, 0, 0);
     }
   } else {
     assert(false && "Invalid dimensions!");
