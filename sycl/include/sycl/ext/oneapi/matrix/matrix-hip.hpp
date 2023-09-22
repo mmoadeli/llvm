@@ -59,10 +59,10 @@ template <> struct to_hip_type<int8_t> {
       TYPE, matrix_use::USE, M, N, Layout,                                     \
       typename std::enable_if_t<Layout == matrix_layout::row_major ||          \
                                 Layout == matrix_layout::col_major>> {         \
-    using ext_array_t = __attribute__((                                              \
+    using ext_array_t = __attribute__((                                        \
         __vector_size__(SIZE * sizeof(typename to_hip_type<TYPE>::type))))     \
     typename to_hip_type<TYPE>::type;                                          \
-    ext_array_t data;                                                                \
+    ext_array_t data;                                                          \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4)
@@ -89,8 +89,9 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 1)
   template <>                                                                  \
   struct joint_matrix_hip<TYPE, matrix_use::accumulator, M, N,                 \
                           matrix_layout::dynamic> {                            \
-    using ext_array_t = __attribute__((__vector_size__(SIZE * sizeof(TYPE)))) TYPE;  \
-    ext_array_t data = {0};                                                          \
+    using ext_array_t =                                                        \
+        __attribute__((__vector_size__(SIZE * sizeof(TYPE)))) TYPE;            \
+    ext_array_t data = {0};                                                    \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 4)
@@ -103,17 +104,6 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(int32_t, 16, 16, 4)
 
 #endif
 
-#define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_PRECISION(PRECISION, USE, M, N, TYPE, \
-                                                   SIZE)                       \
-  template <matrix_layout Layout>                                              \
-  struct joint_matrix_hip<                                                     \
-      PRECISION, matrix_use::USE, M, N, Layout,                                \
-      typename std::enable_if_t<Layout == matrix_layout::row_major ||          \
-                                Layout == matrix_layout::col_major>> {         \
-    TYPE data;                                                                 \
-  };
-
-#undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR_PRECISION
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__HIP_PLATFORM_AMD__)
 
 template <matrix_layout Layout, typename S, typename T, size_t NumRows,
@@ -127,8 +117,7 @@ void load_accumulator_layoutT(
                    sg.get_local_linear_id();
   if constexpr (Layout == matrix_layout::row_major) {
     res.data = {0};
-  } else if constexpr (Layout == sycl::ext::oneapi::experimental::matrix::
-                                     layout::col_major) {
+  } else if constexpr (Layout == matrix_layout::col_major) {
     res.data = {0};
   }
 };
