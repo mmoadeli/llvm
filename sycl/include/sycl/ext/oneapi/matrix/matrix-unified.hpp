@@ -23,10 +23,10 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
 struct joint_matrix {
 
 #if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
+#if defined(__NVPTX__)
   sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols, Layout>
       cuda_impl;
-#elif defined(__HIP_PLATFORM_AMD__)
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
   sycl::ext::oneapi::detail::joint_matrix_hip<T, Use, Rows, Cols, Layout>
     hip_impl;
 #elif defined(__SPIR__)
@@ -187,10 +187,10 @@ joint_matrix_fill(Group sg,
                   joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
                   const T2 &v) {
 #if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
+#if defined(__NVPTX__)
   std::ignore = sg;
   res.cuda_impl.wi_marray = v;
-#elif defined(__HIP_PLATFORM_AMD__)
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
   res.hip_impl.data = v;
 #else
   using storage_element_type =
@@ -225,11 +225,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
-#if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
+#if defined(__NVPTX__)
   std::ignore = sg;
   sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
                                                    Layout);
-#elif defined(__HIP_PLATFORM_AMD__)
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
   sycl::ext::oneapi::detail::load_accumulator_hip(res.hip_impl, src, stride,
                                                   Layout, sg);
 #else
@@ -290,12 +290,12 @@ joint_matrix_load(Group sg,
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
-#if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
+#if defined(__NVPTX__)
   std::ignore = sg;
   sycl::ext::oneapi::detail::load_multiplicand_cuda<S, T, NumRows, NumCols, Use,
                                                     Layout, Space>(
       res.cuda_impl, src, stride);
-#elif defined(__HIP_PLATFORM_AMD__)
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
   sycl::ext::oneapi::detail::load_multiplicand_hip<Group, S, T, NumRows, NumCols, Use,
                                                   Layout, Space>(
       res.hip_impl, src, stride, sg);
@@ -331,12 +331,12 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
-#if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
+#if defined(__NVPTX__)
   std::ignore = sg;
   sycl::ext::oneapi::detail::joint_matrix_store_cuda<T, NumRows, NumCols,
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
-#elif defined(__HIP_PLATFORM_AMD__)
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
   sycl::ext::oneapi::detail::joint_matrix_store_hip<Group, T, NumRows, NumCols,
                                                     Space>(src.hip_impl, dst,
                                                            stride, Layout, sg);
@@ -393,7 +393,7 @@ inline __SYCL_ALWAYS_INLINE
         joint_matrix<Group, Tc, use::accumulator, M, N, LayoutC>
             &C) {
 #if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__) && !defined(__HIP_PLATFORM_AMD__)
+#if defined(__NVPTX__)
   std::ignore = sg;
   if constexpr (std::is_same<Ta, Tb>::value) {
     joint_matrix<Group, Tc, use::accumulator, M, N,
@@ -407,7 +407,7 @@ inline __SYCL_ALWAYS_INLINE
     assert(false && "Ta != Tb : In the CUDA backend joint_matrix_mad "
                     "requires that joint_matrix data types Ta and Tb match");
   }
-#elif defined(__HIP_PLATFORM_AMD__)
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
   if constexpr (std::is_same<Ta, Tb>::value) {
     joint_matrix<Group, Tc, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic>

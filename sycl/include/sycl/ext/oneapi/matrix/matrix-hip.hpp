@@ -11,6 +11,10 @@
 #include "matrix-unified-utils.hpp"
 #include <sycl/ext/oneapi/bfloat16.hpp>
 
+#if defined(__gfx90a__)
+#define __HIP_PLATFORM_AMD_MFMA__
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
@@ -30,7 +34,7 @@ template <typename T, matrix_use Use, size_t Rows, size_t Cols,
           matrix_layout Layout = matrix_layout::dynamic, typename Cond = void>
 struct joint_matrix_hip;
 
-#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__HIP_PLATFORM_AMD_MFMA__)
 
 template<typename T>
 struct to_hip_type {
@@ -101,10 +105,6 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(int32_t, 32, 32, 16)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(int32_t, 16, 16, 4)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC
-
-#endif
-
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__HIP_PLATFORM_AMD__)
 
 template <matrix_layout Layout, typename S, typename T, size_t NumRows,
           size_t NumCols, access::address_space Space,
