@@ -166,28 +166,29 @@ void load_multiplicand_hip(
       const auto thread_y = idx / NumCols;
       constexpr int K = 16;
 
-      if constexpr (Layout == matrix_layout::row_major) {
+      if constexpr (Layout == matrix_layout::col_major) {
         for (int i = 0; i < 4; ++i) {
           const int r_idx =  thread_x * K + i + thread_y * 4;
           res.data[i] = src[r_idx];
         }
-      } else if constexpr (Layout == matrix_layout::col_major) {
+      } else if constexpr (Layout == matrix_layout::row_major) {
         for (int i = 0; i < 4; ++i) {
           const int c_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
           res.data[i] = src[c_idx];
         }
       }
-    } else if constexpr (NumRows == 32 && NumCols == 32) {
-      const auto thread_x = idx % NumCols;
-      const auto thread_y = idx / NumCols;
+    } else if constexpr ((NumRows == 32 && NumCols == 8) ||
+                         (NumRows == 8 && NumCols == 32)) {
+      const auto thread_x = idx % 32;
+      const auto thread_y = idx / 32;
       constexpr int K = 8;
 
-      if constexpr (Layout == matrix_layout::row_major) {
+      if constexpr (Layout == matrix_layout::col_major) {
         for (int i = 0; i < 4; ++i) {
           const int r_idx = thread_x * K + i + thread_y * 4;
           res.data[i] = src[r_idx];
         }
-      } else if constexpr (Layout == matrix_layout::col_major) {
+      } else if constexpr (Layout == matrix_layout::row_major) {
         for (int i = 0; i < 4; ++i) {
           const int c_idx = thread_x + i * NumCols + thread_y * 4 * NumCols;
           res.data[i] = src[c_idx];
@@ -211,7 +212,8 @@ void load_multiplicand_hip(
           res.data[0] |= (int32_t(src[c_idx]) << 8 * (3 - i));
         }
       }
-    } else if constexpr (NumRows == 32 && NumCols == 32) {
+    } else if constexpr ((NumRows == 32 && NumCols == 8) ||
+                         (NumRows == 8 && NumCols == 32)) {
       const auto thread_x = idx % NumCols;
       const auto thread_y = idx / NumCols;
       constexpr int K = 8;
@@ -228,6 +230,8 @@ void load_multiplicand_hip(
         }
       }
     }
+  } else {
+    static_assert(false && "Invalid layout specified6!");
   }
 }
 
@@ -273,7 +277,7 @@ void store_layoutT(joint_matrix_hip<T, matrix_use::accumulator, NumRows,
       }
     }
   } else {
-    static_assert(false && "Invalid dadimenstions!");
+    static_assert(false && "Invalid dimenstions!");
   }
 }
 
@@ -339,7 +343,7 @@ void joint_matrix_mad_hip(joint_matrix_hip<Tc, matrix_use::accumulator, M, N,
                                                    0, 0, 0);
     }
   } else {
-    assert(false && "Invalid dimensions!");
+    static_assert(false && "Invalid configuration!");
   }
 }
 
