@@ -66,7 +66,7 @@ template <> struct to_hip_type<int8_t> {
     using ext_array_t = __attribute__((                                        \
         __vector_size__(SIZE * sizeof(typename to_hip_type<TYPE>::type))))     \
     typename to_hip_type<TYPE>::type;                                          \
-    ext_array_t data;                                                          \
+    ext_array_t data = {0};                                                    \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4)
@@ -89,20 +89,20 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 1)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 
-#define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(TYPE, M, N, SIZE)                 \
+#define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(TYPE, M, N)                       \
   template <>                                                                  \
   struct joint_matrix_hip<TYPE, matrix_use::accumulator, M, N,                 \
                           matrix_layout::dynamic> {                            \
     using ext_array_t =                                                        \
-        __attribute__((__vector_size__(SIZE * sizeof(TYPE)))) TYPE;            \
+        __attribute__((__vector_size__((M * N) / 64 * sizeof(TYPE)))) TYPE;    \
     ext_array_t data = {0};                                                    \
   };
 
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 32, 32, 16)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(double, 16, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(int32_t, 32, 32, 16)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(int32_t, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 32, 32)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(double, 16, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(int32_t, 32, 32)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(int32_t, 16, 16)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC
 
@@ -204,12 +204,12 @@ void load_multiplicand_hip(
       if constexpr (Layout == matrix_layout::row_major) {
         for (int i = 0; i < 4; ++i) {
           const int r_idx = thread_x * K + i + thread_y * 4;
-          res.data[0] |= (int32_t(src[r_idx]) << 8 * (3 - i));
+          res.data[0] |= (int32_t(src[r_idx]) << 8 * i);
         }
       } else if constexpr (Layout == matrix_layout::col_major) {
         for (int i = 0; i < 4; ++i) {
           const int c_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
-          res.data[0] |= (int32_t(src[c_idx]) << 8 * (3 - i));
+          res.data[0] |= (int32_t(src[c_idx]) << 8 * i);
         }
       }
     } else if constexpr ((NumRows == 32 && NumCols == 8) ||
@@ -221,12 +221,12 @@ void load_multiplicand_hip(
       if constexpr (Layout == matrix_layout::row_major) {
         for (int i = 0; i < 4; ++i) {
           const int r_idx = thread_x * K + i + thread_y * 4;
-          res.data[0] |= (int32_t(src[r_idx]) << 8 * (3 - i));
+          res.data[0] |= (int32_t(src[r_idx]) << 8 * i);
         }
       } else if constexpr (Layout == matrix_layout::col_major) {
         for (int i = 0; i < 4; ++i) {
           const int c_idx = thread_x + i * NumCols + thread_y * 4 * NumCols;
-          res.data[0] |= (int32_t(src[c_idx]) << 8 * (3 - i));
+          res.data[0] |= (int32_t(src[c_idx]) << 8 * i);
         }
       }
     }
