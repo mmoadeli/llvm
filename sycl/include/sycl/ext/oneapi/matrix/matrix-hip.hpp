@@ -82,12 +82,23 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 8, 32, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, a, 16, 4, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 16, 1)
 
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 8, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 8, 32, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 16, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 1)
-
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
+
+#define __SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR(USE, M, N, SIZE)                 \
+  template <matrix_layout Layout>                                              \
+  struct joint_matrix_hip<                                                     \
+      int8_t, matrix_use::USE, M, N, Layout,                                   \
+      typename std::enable_if_t<Layout == matrix_layout::row_major ||          \
+                                Layout == matrix_layout::col_major>> {         \
+    int8_t data[SIZE];                                                         \
+  };
+
+__SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR(a, 32, 8, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR(b, 8, 32, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR(a, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR(b, 16, 16, 4)
+
+#undef __SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(TYPE, M, N)                       \
   template <>                                                                  \
@@ -185,13 +196,13 @@ void load_multiplicand_hip(
 
       if constexpr (Layout == matrix_layout::col_major) {
         for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x * K + i + thread_y * 4;
-          res.data[i] = src[r_idx];
+          const int c_idx = thread_x * K + i + thread_y * 4;
+          res.data[i] = src[c_idx];
         }
       } else if constexpr (Layout == matrix_layout::row_major) {
         for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x + i * NumCols + thread_y * 4 * NumCols;
-          res.data[i] = src[c_idx];
+          const int r_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
+          res.data[i] = src[r_idx];
         }
       }
     }
@@ -201,32 +212,32 @@ void load_multiplicand_hip(
       const auto thread_y = idx / NumCols;
       constexpr int K = 16;
 
-      if constexpr (Layout == matrix_layout::row_major) {
+      if constexpr (Layout == matrix_layout::col_major) {
         for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x * K + i + thread_y * 4;
-          res.data[0] |= (int32_t(src[r_idx]) << 8 * i);
+          const int c_idx = thread_x * K + i + thread_y * 4;
+          res.data[i] = src[c_idx];
         }
-      } else if constexpr (Layout == matrix_layout::col_major) {
+      } else if constexpr (Layout == matrix_layout::row_major) {
         for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
-          res.data[0] |= (int32_t(src[c_idx]) << 8 * i);
+          const int r_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
+          res.data[i] = src[r_idx];
         }
       }
     } else if constexpr ((NumRows == 32 && NumCols == 8) ||
                          (NumRows == 8 && NumCols == 32)) {
-      const auto thread_x = idx % NumCols;
-      const auto thread_y = idx / NumCols;
+      const auto thread_x = idx % 32;
+      const auto thread_y = idx / 32;
       constexpr int K = 8;
 
-      if constexpr (Layout == matrix_layout::row_major) {
+      if constexpr (Layout == matrix_layout::col_major) {
         for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x * K + i + thread_y * 4;
-          res.data[0] |= (int32_t(src[r_idx]) << 8 * i);
+          const int c_idx = thread_x * K + i + thread_y * 4;
+          res.data[i] = src[c_idx];
         }
-      } else if constexpr (Layout == matrix_layout::col_major) {
+      } else if constexpr (Layout == matrix_layout::row_major) {
         for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x + i * NumCols + thread_y * 4 * NumCols;
-          res.data[0] |= (int32_t(src[c_idx]) << 8 * i);
+          const int r_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
+          res.data[i] = src[r_idx];
         }
       }
     }
@@ -336,11 +347,13 @@ void joint_matrix_mad_hip(joint_matrix_hip<Tc, matrix_use::accumulator, M, N,
     }
   } else if constexpr (std::is_same_v<Tm, int8_t>) {
     if constexpr (M == 16 && N == 16) {
-      D.data = __builtin_amdgcn_mfma_i32_16x16x16i8(A.data[0], B.data[0],
-                                                    C.data, 0, 0, 0);
+      D.data = __builtin_amdgcn_mfma_i32_16x16x16i8(
+          *reinterpret_cast<int32_t *>(A.data),
+          *reinterpret_cast<int32_t *>(B.data), C.data, 0, 0, 0);
     } else if constexpr (M == 32 && N == 32) {
-      D.data = __builtin_amdgcn_mfma_i32_32x32x8i8(A.data[0], B.data[0], C.data,
-                                                   0, 0, 0);
+      D.data = __builtin_amdgcn_mfma_i32_32x32x8i8(
+          *reinterpret_cast<int32_t *>(A.data),
+          *reinterpret_cast<int32_t *>(B.data), C.data, 0, 0, 0);
     }
   } else {
     static_assert(false && "Invalid configuration!");
