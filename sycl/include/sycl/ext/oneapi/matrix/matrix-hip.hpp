@@ -163,87 +163,38 @@ template <
 void load_multiplicand_hip(
     joint_matrix_hip<S, Use, NumRows, NumCols, Layout> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
+  std::ignore = stride;
+  static_assert(std::is_same_v<S, half> || std::is_same_v<S, bfloat16> ||
+                    std::is_same_v<S, int8_t> || std::is_same_v<S, double>,
+                "Unsupported matrix type!");
+
   const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
                 sg.get_local_linear_id();
-  std::ignore = stride;
+
   if constexpr (std::is_same_v<S, double>) {
     if constexpr (Layout == matrix_layout::row_major) {
       res.data[0] = src[idx];
     } else if constexpr (Layout == matrix_layout::col_major) {
       res.data[0] = src[(idx % NumRows) * 4 + idx / NumRows];
     }
-  } else if constexpr (std::is_same_v<S, half> || std::is_same_v<S, bfloat16>) {
-    if constexpr (NumRows == 16 && NumCols == 16) {
-      const auto thread_x = idx % NumCols;
-      const auto thread_y = idx / NumCols;
-      constexpr int K = 16;
-
-      if constexpr (Layout == matrix_layout::col_major) {
-        for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x * K + i + thread_y * 4;
-          res.data[i] = src[c_idx];
-        }
-      } else if constexpr (Layout == matrix_layout::row_major) {
-        for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
-          res.data[i] = src[r_idx];
-        }
-      }
-    } else if constexpr ((NumRows == 32 && NumCols == 8) ||
-                         (NumRows == 8 && NumCols == 32)) {
-      const auto thread_x = idx % 32;
-      const auto thread_y = idx / 32;
-      constexpr int K = 8;
-
-      if constexpr (Layout == matrix_layout::col_major) {
-        for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x * K + i + thread_y * 4;
-          res.data[i] = src[c_idx];
-        }
-      } else if constexpr (Layout == matrix_layout::row_major) {
-        for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
-          res.data[i] = src[r_idx];
-        }
-      }
-    }
-  } else if constexpr (std::is_same_v<S, int8_t>) {
-    if constexpr (NumRows == 16 && NumCols == 16) {
-      const auto thread_x = idx % NumCols;
-      const auto thread_y = idx / NumCols;
-      constexpr int K = 16;
-
-      if constexpr (Layout == matrix_layout::col_major) {
-        for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x * K + i + thread_y * 4;
-          res.data[i] = src[c_idx];
-        }
-      } else if constexpr (Layout == matrix_layout::row_major) {
-        for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
-          res.data[i] = src[r_idx];
-        }
-      }
-    } else if constexpr ((NumRows == 32 && NumCols == 8) ||
-                         (NumRows == 8 && NumCols == 32)) {
-      const auto thread_x = idx % 32;
-      const auto thread_y = idx / 32;
-      constexpr int K = 8;
-
-      if constexpr (Layout == matrix_layout::col_major) {
-        for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x * K + i + thread_y * 4;
-          res.data[i] = src[c_idx];
-        }
-      } else if constexpr (Layout == matrix_layout::row_major) {
-        for (int i = 0; i < 4; ++i) {
-          const int r_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
-          res.data[i] = src[r_idx];
-        }
-      }
-    }
   } else {
-    static_assert(false && "Invalid layout specified6!");
+    constexpr int Dim = (NumRows == 16) ? 16 : 32;
+    constexpr int K = (NumRows == 16) ? 16 : 8;
+
+    const auto thread_x = idx % Dim;
+    const auto thread_y = idx / Dim;
+
+    if constexpr (Layout == matrix_layout::col_major) {
+      for (int i = 0; i < 4; ++i) {
+        const int c_idx = thread_x * K + i + thread_y * 4;
+        res.data[i] = src[c_idx];
+      }
+    } else if constexpr (Layout == matrix_layout::row_major) {
+      for (int i = 0; i < 4; ++i) {
+        const int r_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
+        res.data[i] = src[r_idx];
+      }
+    }
   }
 }
 
