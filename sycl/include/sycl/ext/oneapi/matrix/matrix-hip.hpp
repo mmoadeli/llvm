@@ -1,5 +1,5 @@
 
-//===-------- matrix-tensorcores.hpp - matrix ext impl ---*- C++ -*-------===//
+//===-------- matrix-hip.hpp - matrix ext impl ---*- C++ -*-------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -124,6 +124,7 @@ void load_accumulator_layoutT(
     joint_matrix_hip<S, matrix_use::accumulator, NumRows, NumCols,
                      matrix_layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
+  std::ignore = stride;
   const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
                    sg.get_local_linear_id();
   if constexpr (Layout == matrix_layout::row_major) {
@@ -164,7 +165,7 @@ void load_multiplicand_hip(
     multi_ptr<T, Space, IsDecorated> src, size_t stride, Group &sg) {
   const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
                 sg.get_local_linear_id();
-
+  std::ignore = stride;
   if constexpr (std::is_same_v<S, double>) {
     if constexpr (Layout == matrix_layout::row_major) {
       res.data[0] = src[idx];
@@ -179,13 +180,13 @@ void load_multiplicand_hip(
 
       if constexpr (Layout == matrix_layout::col_major) {
         for (int i = 0; i < 4; ++i) {
-          const int r_idx =  thread_x * K + i + thread_y * 4;
-          res.data[i] = src[r_idx];
+          const int c_idx = thread_x * K + i + thread_y * 4;
+          res.data[i] = src[c_idx];
         }
       } else if constexpr (Layout == matrix_layout::row_major) {
         for (int i = 0; i < 4; ++i) {
-          const int c_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
-          res.data[i] = src[c_idx];
+          const int r_idx = thread_x + i * NumCols + thread_y * NumCols * 4;
+          res.data[i] = src[r_idx];
         }
       }
     } else if constexpr ((NumRows == 32 && NumCols == 8) ||
@@ -253,6 +254,7 @@ void store_layoutT(joint_matrix_hip<T, matrix_use::accumulator, NumRows,
                                     NumCols, matrix_layout::dynamic> &src,
                    multi_ptr<T, Space, IsDecorated> dst, size_t stride,
                    Group &sg) {
+  std::ignore = stride;
   const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
                    sg.get_local_linear_id();
 
