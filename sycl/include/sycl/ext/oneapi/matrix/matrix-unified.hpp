@@ -9,6 +9,7 @@
 #pragma once
 #include "matrix-intel.hpp"
 #include "utils.hpp"
+#include <sycl/ext/oneapi/matrix/matrix-hip.hpp>
 #include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
 namespace sycl {
 inline namespace _V1 {
@@ -25,6 +26,9 @@ struct joint_matrix {
 #if defined(__NVPTX__)
   sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols, Layout>
       cuda_impl;
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
+  sycl::ext::oneapi::detail::joint_matrix_hip<T, Use, Rows, Cols, Layout>
+      hip_impl;
 #elif defined(__SPIR__)
   __spv::__spirv_JointMatrixINTEL<
       T, Rows, Cols, spv_matrix_layout_traits<Layout>::value,
@@ -186,6 +190,8 @@ joint_matrix_fill(Group sg,
 #if defined(__NVPTX__)
   std::ignore = sg;
   res.cuda_impl.wi_marray = v;
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
+  res.hip_impl.data = v;
 #else
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
@@ -223,6 +229,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   std::ignore = sg;
   sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
                                                    Layout);
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
+  sycl::ext::oneapi::detail::load_accumulator_hip(res.hip_impl, src, stride,
+                                                  Layout, sg);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
@@ -286,6 +295,10 @@ joint_matrix_load(Group sg,
   sycl::ext::oneapi::detail::load_multiplicand_cuda<S, T, NumRows, NumCols, Use,
                                                     Layout, Space>(
       res.cuda_impl, src, stride);
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
+  sycl::ext::oneapi::detail::load_multiplicand_hip<Group, S, T, NumRows,
+                                                   NumCols, Use, Layout, Space>(
+      res.hip_impl, src, stride, sg);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
@@ -322,6 +335,10 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   sycl::ext::oneapi::detail::joint_matrix_store_cuda<T, NumRows, NumCols,
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
+  sycl::ext::oneapi::detail::joint_matrix_store_hip<Group, T, NumRows, NumCols,
+                                                    Space>(src.hip_impl, dst,
+                                                           stride, Layout, sg);
 #else
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
@@ -386,6 +403,19 @@ inline __SYCL_ALWAYS_INLINE
     sycl::ext::oneapi::detail::joint_matrix_mad_cuda<Ta, Tc, M, K, N, LayoutA,
                                                      LayoutB>(
         D.cuda_impl, A.cuda_impl, B.cuda_impl, C.cuda_impl);
+    return D;
+  } else {
+    assert(false && "Ta != Tb : In the CUDA backend joint_matrix_mad "
+                    "requires that joint_matrix data types Ta and Tb match");
+  }
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
+  if constexpr (std::is_same<Ta, Tb>::value) {
+    joint_matrix<Group, Tc, use::accumulator, M, N,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic>
+        D;
+    sycl::ext::oneapi::detail::joint_matrix_mad_hip<Ta, Tc, M, K, N, LayoutA,
+                                                    LayoutB>(
+        D.hip_impl, A.hip_impl, B.hip_impl, C.hip_impl);
     return D;
   } else {
     assert(false && "Ta != Tb : In the CUDA backend joint_matrix_mad "
