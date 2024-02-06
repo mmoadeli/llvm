@@ -32,13 +32,6 @@ namespace __sycl_std = __host_std;
 #endif
 
 namespace detail {
-// Get the element type of T. If T is a scalar, the element type is considered
-// the type of the scalar.
-template <typename T> struct get_elem_type {
-  using type = T;
-};
-
-template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
 #ifdef __FAST_MATH__
 template <typename T>
 struct use_fast_math
@@ -213,7 +206,6 @@ template <typename T> struct nan_return_unswizzled {
 
 template <typename T>
 using nan_return_unswizzled_t = typename nan_return_unswizzled<T>::type;
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

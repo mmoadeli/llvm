@@ -105,7 +105,9 @@ void NVPTXDAGToDAGISel::Select(SDNode *N) {
   case NVPTXISD::SETP_F16X2:
     SelectSETP_F16X2(N);
     return;
-
+  case NVPTXISD::SETP_BF16X2:
+    SelectSETP_BF16X2(N);
+    return;
   case NVPTXISD::LoadV2:
   case NVPTXISD::LoadV4:
     if (tryLoadVector(N))
@@ -511,7 +513,7 @@ void NVPTXDAGToDAGISel::Select(SDNode *N) {
 }
 
 bool NVPTXDAGToDAGISel::tryIntrinsicChain(SDNode *N) {
-  unsigned IID = cast<ConstantSDNode>(N->getOperand(1))->getZExtValue();
+  unsigned IID = N->getConstantOperandVal(1);
   switch (IID) {
   default:
     return false;
@@ -603,6 +605,17 @@ bool NVPTXDAGToDAGISel::SelectSETP_F16X2(SDNode *N) {
   SDLoc DL(N);
   SDNode *SetP = CurDAG->getMachineNode(
       NVPTX::SETP_f16x2rr, DL, MVT::i1, MVT::i1, N->getOperand(0),
+      N->getOperand(1), CurDAG->getTargetConstant(PTXCmpMode, DL, MVT::i32));
+  ReplaceNode(N, SetP);
+  return true;
+}
+
+bool NVPTXDAGToDAGISel::SelectSETP_BF16X2(SDNode *N) {
+  unsigned PTXCmpMode =
+      getPTXCmpMode(*cast<CondCodeSDNode>(N->getOperand(2)), useF32FTZ());
+  SDLoc DL(N);
+  SDNode *SetP = CurDAG->getMachineNode(
+      NVPTX::SETP_bf16x2rr, DL, MVT::i1, MVT::i1, N->getOperand(0),
       N->getOperand(1), CurDAG->getTargetConstant(PTXCmpMode, DL, MVT::i32));
   ReplaceNode(N, SetP);
   return true;
@@ -717,7 +730,7 @@ static bool canLowerToLDG(MemSDNode *N, const NVPTXSubtarget &Subtarget,
 }
 
 bool NVPTXDAGToDAGISel::tryIntrinsicNoChain(SDNode *N) {
-  unsigned IID = cast<ConstantSDNode>(N->getOperand(0))->getZExtValue();
+  unsigned IID = N->getConstantOperandVal(0);
   switch (IID) {
   default:
     return false;
@@ -1233,7 +1246,7 @@ bool NVPTXDAGToDAGISel::tryLDGLDU(SDNode *N) {
   if (N->getOpcode() == ISD::INTRINSIC_W_CHAIN) {
     Op1 = N->getOperand(2);
     Mem = cast<MemIntrinsicSDNode>(N);
-    unsigned IID = cast<ConstantSDNode>(N->getOperand(1))->getZExtValue();
+    unsigned IID = N->getConstantOperandVal(1);
     switch (IID) {
     default:
       return false;
@@ -2063,7 +2076,7 @@ bool NVPTXDAGToDAGISel::tryLoadParam(SDNode *Node) {
     VTs = CurDAG->getVTList(EVTs);
   }
 
-  unsigned OffsetVal = cast<ConstantSDNode>(Offset)->getZExtValue();
+  unsigned OffsetVal = Offset->getAsZExtVal();
 
   SmallVector<SDValue, 2> Ops;
   Ops.push_back(CurDAG->getTargetConstant(OffsetVal, DL, MVT::i32));
@@ -2078,7 +2091,7 @@ bool NVPTXDAGToDAGISel::tryStoreRetval(SDNode *N) {
   SDLoc DL(N);
   SDValue Chain = N->getOperand(0);
   SDValue Offset = N->getOperand(1);
-  unsigned OffsetVal = cast<ConstantSDNode>(Offset)->getZExtValue();
+  unsigned OffsetVal = Offset->getAsZExtVal();
   MemSDNode *Mem = cast<MemSDNode>(N);
 
   // How many elements do we have?
@@ -2145,9 +2158,9 @@ bool NVPTXDAGToDAGISel::tryStoreParam(SDNode *N) {
   SDLoc DL(N);
   SDValue Chain = N->getOperand(0);
   SDValue Param = N->getOperand(1);
-  unsigned ParamVal = cast<ConstantSDNode>(Param)->getZExtValue();
+  unsigned ParamVal = Param->getAsZExtVal();
   SDValue Offset = N->getOperand(2);
-  unsigned OffsetVal = cast<ConstantSDNode>(Offset)->getZExtValue();
+  unsigned OffsetVal = Offset->getAsZExtVal();
   MemSDNode *Mem = cast<MemSDNode>(N);
   SDValue Glue = N->getOperand(N->getNumOperands() - 1);
 

@@ -2235,9 +2235,9 @@ public:
           size_t num_names = names_array->GetSize();
 
           for (size_t i = 0; i < num_names; i++) {
-            llvm::StringRef name;
-            if (names_array->GetItemAtIndexAsString(i, name))
-              request.TryCompleteCurrentArg(name);
+            if (std::optional<llvm::StringRef> maybe_name =
+                    names_array->GetItemAtIndexAsString(i))
+              request.TryCompleteCurrentArg(*maybe_name);
           }
         }
       }
@@ -2494,7 +2494,9 @@ void CommandObjectMultiwordBreakpoint::VerifyIDs(
   // NOW, convert the list of breakpoint id strings in TEMP_ARGS into an actual
   // BreakpointIDList:
 
-  valid_ids->InsertStringArray(temp_args.GetArgumentArrayRef(), result);
+  for (llvm::StringRef temp_arg : temp_args.GetArgumentArrayRef())
+    if (auto bp_id = BreakpointID::ParseCanonicalReference(temp_arg))
+      valid_ids->AddBreakpointID(*bp_id);
 
   // At this point,  all of the breakpoint ids that the user passed in have
   // been converted to breakpoint IDs and put into valid_ids.
