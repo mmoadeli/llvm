@@ -94,7 +94,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/mmoadeli/unified-runtime.git")
   # commit a7c202b49aff130f60da0c03916d08bb22b91aa0
   # Merge: f85e2e96 e548dc1e
   # Author: Martin Grant <martin.morrisongrant@codeplay.com>
@@ -126,7 +126,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     # Date:   Wed Apr 10 11:04:28 2024 +0100
     #     Merge pull request #1181 from DuncanMcBain/cuda-mem-size-fix
     #     Return device total global memory for MaxAllocSize
-    05b5899202f7e3b3f12f4c5b8fc8f01451d08105
+   # 05b5899202f7e3b3f12f4c5b8fc8f01451d08105
+   57ab5aae863b6d073e6cfa6e640e31a71efbbb73
   )
 
   fetch_adapter_source(hip
